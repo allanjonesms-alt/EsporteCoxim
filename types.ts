@@ -32,6 +32,7 @@ export interface Team {
   name: string;
   logo?: string;
   playerIds: string[];
+  league?: string; // Novo campo para vincular ao campeonato
 }
 
 export interface Competition {
