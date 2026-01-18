@@ -1,0 +1,7 @@
+{
+  "name": "ESPORTE COXIM",
+  "description": "Aplicativo completo para gerenciamento e acompanhamento de competições esportivas regionais em Coxim.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
