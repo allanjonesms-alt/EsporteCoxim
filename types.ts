@@ -1,62 +1,41 @@
 
 export enum CompStatus {
-  ATIVA = 'Ativa',
-  EM_BREVE = 'Em Breve',
-  INATIVA = 'Inativa',
-  ENCERRADA = 'Encerrada'
+  ATIVA = 'ATIVA',
+  EM_BREVE = 'EM_BREVE',
+  ENCERRADA = 'ENCERRADA',
+  AGENDADA = 'AGENDADA'
 }
 
 export enum GameStatus {
-  AO_VIVO = 'Ao Vivo',
-  PROXIMO = 'Próximo Jogo',
-  ENCERRADO = 'Encerrado'
-}
-
-export enum Phase {
-  GRUPOS = 'Grupos',
-  PLAYOFFS = 'Play-Offs'
-}
-
-export interface Player {
-  id: string;
-  teamId: string;
-  name: string;
-  nickname: string;
-  dob: string;
-  photo?: string;
-  goals: number;
+  AGENDADO = 'AGENDADO',
+  AO_VIVO = 'AO_VIVO',
+  ENCERRADO = 'ENCERRADO'
 }
 
 export interface Team {
   id: string;
   name: string;
   logo?: string;
-  playerIds: string[];
-  league?: string; // Novo campo para vincular ao campeonato
+  league?: string;
 }
 
 export interface Competition {
   id: string;
   name: string;
-  dateTime: string;
   status: CompStatus;
-  phase: Phase;
-  teamIds: string[];
+  team_ids: string[];
+  date?: string;
+  current_phase?: string;
 }
 
 export interface Game {
   id: string;
-  competitionId: string;
-  homeTeamId: string;
-  awayTeamId: string;
-  homeScore: number;
-  awayScore: number;
+  competition_id: string;
+  home_team_id: string;
+  away_team_id: string;
+  home_score: number;
+  away_score: number;
   status: GameStatus;
-  date: string;
-  time: string;
-}
-
-export interface AdminUser {
-  phone: string;
-  password: string;
+  game_date?: string;
+  game_time?: string;
 }
