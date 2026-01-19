@@ -28,6 +28,13 @@ export interface Competition {
   current_phase?: string;
 }
 
+export interface Phase {
+  id: string | number;
+  competitions_id: string | number;
+  name: string;
+  type: 'Fase de Grupos' | 'Mata-Mata';
+}
+
 export interface Game {
   id: string;
   competition_id: string;

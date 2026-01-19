@@ -24,9 +24,14 @@ import {
   Target,
   ChevronDown,
   RefreshCw,
-  PlusCircle
+  PlusCircle,
+  Edit3,
+  Layers,
+  Settings2,
+  ArrowRight,
+  UserPlus
 } from 'lucide-react';
-import { Competition, Team, Game, CompStatus, GameStatus } from './types';
+import { Competition, Team, Game, CompStatus, GameStatus, Phase } from './types';
 import { DEFAULT_ADMIN } from './constants';
 
 // Configuração Supabase
@@ -38,6 +43,7 @@ export default function App() {
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [games, setGames] = useState<Game[]>([]);
+  const [phases, setPhases] = useState<Phase[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [selectedCompId, setSelectedCompId] = useState<string>('');
@@ -45,6 +51,22 @@ export default function App() {
   
   // Modal State
   const [isCompModalOpen, setIsCompModalOpen] = useState(false);
+  const [editingCompId, setEditingCompId] = useState<string | null>(null);
+  
+  // Phase Modal States
+  const [isPhaseModalOpen, setIsPhaseModalOpen] = useState(false);
+  const [isPhaseListModalOpen, setIsPhaseListModalOpen] = useState(false);
+  const [newPhaseData, setNewPhaseData] = useState({
+    name: '',
+    type: 'Fase de Grupos' as 'Fase de Grupos' | 'Mata-Mata'
+  });
+
+  // Group Configuration Logic
+  const [configuringPhase, setConfiguringPhase] = useState<Phase | null>(null);
+  const [groupConfigStep, setGroupConfigStep] = useState<'list' | 'setup' | 'slots'>('list');
+  const [numGroups, setNumGroups] = useState<number>(2);
+  const [groupAssignments, setGroupAssignments] = useState<Record<string, string[]>>({});
+  const [selectedTeamForAssignment, setSelectedTeamForAssignment] = useState<string | null>(null);
 
   // Admin State
   const [view, setView] = useState<'user' | 'admin' | 'login'>('user');
@@ -55,11 +77,11 @@ export default function App() {
   // Admin Forms State
   const [newTeamName, setNewTeamName] = useState('');
   
-  // New Comp Form State (Modal)
+  // New/Edit Comp Form State (Modal)
   const [newCompData, setNewCompData] = useState({
     name: '',
     date: '',
-    status: CompStatus.AGENDADA, // Definido como Agendada por padrão conforme solicitado
+    status: CompStatus.AGENDADA,
     phase: 'Fase de Grupos',
     teams: [] as string[]
   });
@@ -76,22 +98,23 @@ export default function App() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Buscando da tabela 'leagues' conforme correção anterior
-      const [cRes, tRes, gRes] = await Promise.all([
+      const [cRes, tRes, gRes, pRes] = await Promise.all([
         supabase.from('leagues').select('*').order('id', { ascending: false }),
         supabase.from('teams').select('*').order('name'),
-        supabase.from('games').select('*').order('game_date', { ascending: true })
+        supabase.from('games').select('*').order('game_date', { ascending: true }),
+        supabase.from('phases').select('*').order('name')
       ]);
 
       if (cRes.data) setCompetitions(cRes.data);
       if (tRes.data) setTeams(tRes.data);
       if (gRes.data) setGames(gRes.data);
+      if (pRes.data) setPhases(pRes.data);
       
       if (cRes.data && cRes.data.length > 0 && !selectedCompId) {
         setSelectedCompId(cRes.data[0].id.toString());
       }
-    } catch (error) {
-      console.error("Erro ao buscar dados do Supabase:", error);
+    } catch (error: any) {
+      console.error("Erro ao buscar dados:", error);
     } finally {
       setLoading(false);
     }
@@ -119,25 +142,38 @@ export default function App() {
       if (error) throw error;
       setNewGame({ ...newGame, homeId: '', awayId: '' });
       await fetchData();
-    } catch (err) { alert("Erro ao criar partida."); }
-    finally { setSyncing(false); }
+    } catch (err: any) { 
+      alert("Erro ao criar partida: " + (err.message || "Erro desconhecido")); 
+    } finally { 
+      setSyncing(false); 
+    }
   };
 
   const handleUpdateGame = async (gameId: string, h: number, a: number, status: GameStatus) => {
     setSyncing(true);
     try {
-      await supabase.from('games').update({ home_score: h, away_score: a, status }).eq('id', gameId);
+      const { error } = await supabase.from('games').update({ home_score: h, away_score: a, status }).eq('id', gameId);
+      if (error) throw error;
       await fetchData();
-    } finally { setSyncing(false); }
+    } catch (err: any) {
+      alert("Erro ao atualizar jogo: " + (err.message || "Erro desconhecido"));
+    } finally { 
+      setSyncing(false); 
+    }
   };
 
   const handleDeleteGame = async (id: string) => {
     if (!confirm("Excluir esta partida?")) return;
     setSyncing(true);
     try {
-      await supabase.from('games').delete().eq('id', id);
+      const { error } = await supabase.from('games').delete().eq('id', id);
+      if (error) throw error;
       await fetchData();
-    } finally { setSyncing(false); }
+    } catch (err: any) {
+      alert("Erro ao excluir jogo: " + (err.message || "Erro desconhecido"));
+    } finally { 
+      setSyncing(false); 
+    }
   };
 
   const handleCreateTeam = async (e: React.FormEvent) => {
@@ -149,56 +185,119 @@ export default function App() {
       if (error) throw error;
       setNewTeamName('');
       await fetchData();
-    } finally { setSyncing(false); }
+    } catch (err: any) {
+      alert("Erro ao criar time: " + (err.message || "Erro desconhecido"));
+    } finally { 
+      setSyncing(false); 
+    }
   };
 
   const handleDeleteTeam = async (id: string) => {
     if (!confirm("Excluir este clube?")) return;
     setSyncing(true);
     try {
-      await supabase.from('teams').delete().eq('id', id);
+      const { error } = await supabase.from('teams').delete().eq('id', id);
+      if (error) throw error;
       await fetchData();
-    } finally { setSyncing(false); }
+    } catch (err: any) {
+      alert("Erro ao excluir time: " + (err.message || "Erro desconhecido"));
+    } finally { 
+      setSyncing(false); 
+    }
   };
 
-  const handleCreateComp = async () => {
+  const handleSaveComp = async () => {
     if (!newCompData.name) return alert("Preencha o nome do campeonato.");
     setSyncing(true);
     try {
-      // Inserindo na tabela 'leagues'
-      const { error } = await supabase.from('leagues').insert({
+      const payload = {
         name: newCompData.name,
         status: newCompData.status,
         date: newCompData.date || new Date().toISOString().split('T')[0],
-        current_phase: newCompData.phase,
-        team_ids: []
+        current_phase: newCompData.phase
+      };
+
+      if (editingCompId) {
+        const { error } = await supabase.from('leagues').update(payload).eq('id', Number(editingCompId));
+        if (error) throw error;
+      } else {
+        const manualId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
+        const { error } = await supabase.from('leagues').insert({ ...payload, id: manualId });
+        if (error) throw error;
+      }
+      
+      handleCloseCompModal();
+      await fetchData();
+    } catch (err: any) {
+      console.error(err);
+      alert("Erro ao salvar campeonato: " + (err.message || "Erro de conexão"));
+    } finally { 
+      setSyncing(false); 
+    }
+  };
+
+  const handleSavePhase = async () => {
+    if (!newPhaseData.name || !editingCompId) return alert("Preencha o nome da fase.");
+    setSyncing(true);
+    try {
+      const manualId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
+      const { error } = await supabase.from('phases').insert({
+        id: manualId,
+        competitions_id: Number(editingCompId),
+        name: newPhaseData.name,
+        type: newPhaseData.type
       });
       
       if (error) throw error;
       
-      setNewCompData({
-        name: '',
-        date: '',
-        status: CompStatus.AGENDADA, // Resetando para o padrão solicitado
-        phase: 'Fase de Grupos',
-        teams: []
-      });
-      setIsCompModalOpen(false);
+      alert("Fase criada com sucesso!");
+      setNewPhaseData({ name: '', type: 'Fase de Grupos' });
+      setIsPhaseModalOpen(false);
       await fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Erro ao criar campeonato. Verifique as colunas da tabela 'leagues'.");
-    } finally { setSyncing(false); }
+      alert("Erro ao criar fase: " + (err.message || "Erro desconhecido"));
+    } finally { 
+      setSyncing(false); 
+    }
   };
 
-  const handleDeleteComp = async (id: string) => {
-    if (!confirm("Excluir este campeonato?")) return;
+  const handleDeletePhase = async (phaseId: string | number) => {
+    if (!confirm("Excluir esta fase permanentemente?")) return;
     setSyncing(true);
     try {
-      await supabase.from('games').delete().eq('competition_id', id);
-      await supabase.from('leagues').delete().eq('id', id);
+      const { error } = await supabase.from('phases').delete().eq('id', phaseId);
+      if (error) throw error;
       await fetchData();
-    } finally { setSyncing(false); }
+    } catch (err: any) {
+      alert("Erro ao excluir fase: " + (err.message || "Erro desconhecido"));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleEditCompClick = (comp: Competition) => {
+    setEditingCompId(comp.id.toString());
+    setNewCompData({
+      name: comp.name,
+      date: comp.date || '',
+      status: comp.status,
+      phase: comp.current_phase || 'Fase de Grupos',
+      teams: comp.team_ids || []
+    });
+    setIsCompModalOpen(true);
+  };
+
+  const handleCloseCompModal = () => {
+    setIsCompModalOpen(false);
+    setEditingCompId(null);
+    setNewCompData({
+      name: '',
+      date: '',
+      status: CompStatus.AGENDADA,
+      phase: 'Fase de Grupos',
+      teams: []
+    });
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -218,7 +317,22 @@ export default function App() {
     competitions.find(c => c.id.toString() === selectedCompId.toString()), 
   [competitions, selectedCompId]);
 
-  // MOTOR DE CLASSIFICAÇÃO ULTRA-ROBUSTO
+  // Fases do campeonato em edição
+  const activeCompPhases = useMemo(() => {
+    if (!editingCompId) return [];
+    return phases.filter(p => p.competitions_id.toString() === editingCompId.toString());
+  }, [phases, editingCompId]);
+
+  // Equipes vinculadas ao campeonato em edição
+  const activeCompTeams = useMemo(() => {
+    if (!editingCompId) return [];
+    return teams.filter(t => 
+      newCompData.teams.map(String).includes(t.id.toString()) || 
+      (t.league && t.league.toLowerCase() === newCompData.name.toLowerCase())
+    );
+  }, [teams, newCompData.teams, newCompData.name, editingCompId]);
+
+  // MOTOR DE CLASSIFICAÇÃO ADAPTÁVEL
   const standings = useMemo(() => {
     if (!activeComp) return [];
     
@@ -231,10 +345,18 @@ export default function App() {
     const stats: Record<string, any> = {};
 
     let teamList: string[] = [];
-    if (Array.isArray(activeComp.team_ids)) {
+    if (activeComp.team_ids && Array.isArray(activeComp.team_ids)) {
       teamList = activeComp.team_ids.map(String);
-    } else if (typeof activeComp.team_ids === 'string') {
+    } else if (activeComp.team_ids && typeof activeComp.team_ids === 'string') {
       try { teamList = JSON.parse(activeComp.team_ids).map(String); } catch(e) { teamList = []; }
+    } else {
+      const compAllGames = games.filter(g => g.competition_id.toString() === compIdStr);
+      const uniqueTeams = new Set<string>();
+      compAllGames.forEach(g => {
+        uniqueTeams.add(g.home_team_id.toString());
+        uniqueTeams.add(g.away_team_id.toString());
+      });
+      teamList = Array.from(uniqueTeams);
     }
 
     teamList.forEach(tid => {
@@ -295,6 +417,68 @@ export default function App() {
   const totalFinishedGames = useMemo(() => 
     games.filter(g => g.competition_id.toString() === selectedCompId.toString() && g.status === GameStatus.ENCERRADO).length
   , [games, selectedCompId]);
+
+  // Lógica de Gerenciamento de Fases (Grupos)
+  const handlePhaseClick = (phase: Phase) => {
+    if (phase.type === 'Fase de Grupos') {
+      setConfiguringPhase(phase);
+      setGroupConfigStep('setup');
+      setNumGroups(2);
+      setGroupAssignments({});
+      setSelectedTeamForAssignment(null);
+    }
+  };
+
+  const handleGenerateGroupStructure = () => {
+    const numParticipants = activeCompTeams.length;
+    if (numParticipants % numGroups !== 0) {
+      alert(`O número de participantes (${numParticipants}) não é divisível por ${numGroups} grupos. Por favor, ajuste.`);
+      return;
+    }
+
+    const slotsPerGroup = numParticipants / numGroups;
+    const initialAssignments: Record<string, string[]> = {};
+    for (let i = 0; i < numGroups; i++) {
+      const groupLetter = String.fromCharCode(65 + i);
+      initialAssignments[groupLetter] = new Array(slotsPerGroup).fill('');
+    }
+
+    setGroupAssignments(initialAssignments);
+    setGroupConfigStep('slots');
+  };
+
+  const handleAssignTeamToSlot = (groupLetter: string, slotIndex: number) => {
+    if (!selectedTeamForAssignment) {
+      // Se clicar num slot já ocupado, remove o time para o pool
+      if (groupAssignments[groupLetter][slotIndex]) {
+        const newAssignments = { ...groupAssignments };
+        newAssignments[groupLetter][slotIndex] = '';
+        setGroupAssignments(newAssignments);
+      }
+      return;
+    }
+
+    // Verifica se o time já está em algum grupo
+    const alreadyAssigned = Object.values(groupAssignments).some(group => group.includes(selectedTeamForAssignment));
+    if (alreadyAssigned) {
+      alert("Este time já foi escalado em um grupo.");
+      setSelectedTeamForAssignment(null);
+      return;
+    }
+
+    const newAssignments = { ...groupAssignments };
+    newAssignments[groupLetter][slotIndex] = selectedTeamForAssignment;
+    setGroupAssignments(newAssignments);
+    setSelectedTeamForAssignment(null);
+  };
+
+  const assignedTeamIds = useMemo(() => {
+    return Object.values(groupAssignments).flat().filter(id => id !== '');
+  }, [groupAssignments]);
+
+  const availableTeams = useMemo(() => {
+    return activeCompTeams.filter(t => !assignedTeamIds.includes(t.id.toString()));
+  }, [activeCompTeams, assignedTeamIds]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans">
@@ -380,6 +564,7 @@ export default function App() {
 
             {adminTab === 'games' && (
               <div className="space-y-8">
+                {/* Simplified Games Admin View for brevity */}
                 <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
                   <h3 className="font-black text-slate-800 uppercase italic text-lg mb-6 flex items-center gap-2">Agendar Nova Partida</h3>
                   <form onSubmit={handleCreateGame} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
@@ -407,7 +592,6 @@ export default function App() {
                     <button type="submit" className="bg-[#003b95] text-white py-4 rounded-2xl font-black uppercase text-xs shadow-md active:scale-95 transition-all">Criar Jogo</button>
                   </form>
                 </div>
-                {/* Listagem de Jogos Administrativa */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {games.map(g => {
                     const comp = competitions.find(c => c.id.toString() === g.competition_id.toString());
@@ -447,7 +631,7 @@ export default function App() {
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <div className="space-y-1">
                     <h3 className="font-black text-slate-800 uppercase italic text-lg leading-none">Gestão de Torneios</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Controle total dos campeonatos</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Clique no card para editar</p>
                   </div>
                   <div className="flex gap-3">
                     <button 
@@ -457,17 +641,24 @@ export default function App() {
                       <RefreshCw size={20}/>
                     </button>
                     <button 
-                      onClick={() => setIsCompModalOpen(true)}
+                      onClick={() => { setEditingCompId(null); setIsCompModalOpen(true); }}
                       className="flex items-center gap-3 bg-[#003b95] text-white px-8 py-4 rounded-[1.5rem] font-black uppercase text-[10px] shadow-xl hover:shadow-[#003b95]/20 hover:scale-[1.02] active:scale-95 transition-all"
                     >
-                      <PlusCircle size={16}/> Cadastrar Campeonato
+                      <PlusCircle size={16}/> Novo Campeonato
                     </button>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {competitions.map(c => (
-                    <div key={c.id} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-50 group hover:border-[#003b95]/20 transition-all flex flex-col justify-between">
+                    <button 
+                      key={c.id} 
+                      onClick={() => handleEditCompClick(c)}
+                      className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-50 group hover:border-[#003b95] hover:shadow-[#003b95]/5 transition-all flex flex-col justify-between text-left relative overflow-hidden active:scale-95"
+                    >
+                      <div className="absolute top-4 right-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <Edit3 className="text-[#003b95]" size={18} />
+                      </div>
                       <div>
                         <div className="flex justify-between items-start mb-6">
                           <div className="bg-blue-50 p-4 rounded-3xl text-[#003b95] group-hover:scale-110 transition-transform"><TrophyIcon size={24}/></div>
@@ -479,10 +670,10 @@ export default function App() {
                         </p>
                       </div>
                       <div className="flex items-center justify-between pt-6 border-t border-slate-50">
-                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{(c.team_ids || []).length} Equipes</span>
-                        <button onClick={() => handleDeleteComp(c.id)} className="p-2 text-slate-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={18}/></button>
+                        <span className="text-[9px] font-black text-[#003b95] uppercase tracking-widest">Toque para Editar</span>
+                        <ChevronRight size={14} className="text-[#003b95]"/>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -513,7 +704,6 @@ export default function App() {
           </div>
         ) : (
           <div className="space-y-10 animate-in fade-in duration-700">
-            {/* Cabeçalho de visualização do Torneio Selecionado */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
               <div>
                 <h1 className="text-5xl font-black text-slate-900 uppercase italic font-sport leading-none tracking-tight">{activeComp?.name || 'Selecione um Torneio'}</h1>
@@ -535,11 +725,12 @@ export default function App() {
                     <div className="flex items-center gap-3">
                       <TrophyIcon size={24} className="text-white" />
                       <div>
-                         <h3 className="font-black italic uppercase text-white tracking-wider text-lg leading-none">Fase de Grupos</h3>
+                         <h3 className="font-black italic uppercase text-white tracking-wider text-lg leading-none">{activeComp?.current_phase || 'Classificação'}</h3>
                          <span className="text-[8px] text-blue-200 font-black uppercase tracking-widest mt-1">{totalFinishedGames} resultados processados</span>
                       </div>
                     </div>
                   </div>
+                  {/* Standings Table Rendering */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-50 text-slate-400 font-black uppercase border-b border-slate-100">
@@ -584,9 +775,9 @@ export default function App() {
                 </div>
               )}
 
+              {/* Tabs Content: Jogos and Times (Omitted for brevity, kept from original) */}
               {activeTab === 'jogos' && (
                 <div className="space-y-12 animate-in fade-in duration-500">
-                  {/* Seções de Jogos por Status */}
                   {groupedGames.ao_vivo.length > 0 && (
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 border-l-4 border-red-500 pl-4 py-1">
@@ -636,7 +827,7 @@ export default function App() {
 
               {activeTab === 'times' && (
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                  {teams.filter(t => activeComp?.team_ids?.map(String).includes(t.id.toString())).map(team => (
+                  {teams.filter(t => activeComp?.team_ids?.map(String).includes(t.id.toString()) || standings.some(s => s.id === t.id.toString())).map(team => (
                     <div key={team.id} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col items-center text-center group hover:shadow-2xl hover:translate-y-[-8px] transition-all relative overflow-hidden">
                       <div className="absolute top-0 left-0 w-full h-1 bg-[#003b95] opacity-0 group-hover:opacity-100 transition-all"></div>
                       <div className="w-16 h-16 bg-slate-50 rounded-full mb-4 flex items-center justify-center border border-slate-100 shadow-inner group-hover:bg-[#003b95]/5 transition-colors">
@@ -652,28 +843,29 @@ export default function App() {
         )}
       </main>
 
-      {/* Modal Moderno: Cadastro de Campeonato */}
+      {/* Modal Moderno: Cadastro/Edição de Campeonato */}
       {isCompModalOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
           <div 
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300"
-            onClick={() => setIsCompModalOpen(false)}
+            onClick={handleCloseCompModal}
           ></div>
           <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl relative z-10 overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-300">
             <div className="bg-slate-50 px-10 py-8 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-4">
                  <div className="bg-[#003b95] p-3 rounded-2xl text-white shadow-lg"><TrophyIcon size={20}/></div>
                  <div className="text-left">
-                   <h3 className="text-xl font-black text-slate-800 uppercase italic leading-none">Novo Campeonato</h3>
-                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Configuração do Evento</span>
+                   <h3 className="text-xl font-black text-slate-800 uppercase italic leading-none">{editingCompId ? 'Editar Campeonato' : 'Novo Campeonato'}</h3>
+                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ajuste os detalhes do torneio</span>
                  </div>
               </div>
-              <button onClick={() => setIsCompModalOpen(false)} className="p-3 text-slate-300 hover:text-slate-600 hover:bg-white rounded-full transition-all active:scale-95">
+              <button onClick={handleCloseCompModal} className="p-3 text-slate-300 hover:text-slate-600 hover:bg-white rounded-full transition-all active:scale-95">
                 <X size={24}/>
               </button>
             </div>
 
             <div className="px-10 py-10 space-y-8 max-h-[70vh] overflow-y-auto no-scrollbar">
+               {/* Comp Form Fields (Omitted for brevity, kept from original) */}
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div className="space-y-2 text-left">
                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Nome do Torneio</label>
@@ -687,13 +879,35 @@ export default function App() {
                  </div>
                  <div className="space-y-2 text-left">
                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Fase Atual</label>
-                   <input 
-                    type="text" 
-                    placeholder="Ex: Oitavas de Final"
-                    className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-[#003b95]/10 transition-all"
-                    value={newCompData.phase}
-                    onChange={e => setNewCompData({...newCompData, phase: e.target.value})}
-                   />
+                   <div className="flex flex-col gap-2">
+                     <select 
+                      className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-[#003b95]/10 transition-all cursor-pointer appearance-none"
+                      value={newCompData.phase}
+                      onChange={e => setNewCompData({...newCompData, phase: e.target.value})}
+                     >
+                       <option value="Fase de Grupos">Fase de Grupos</option>
+                       <option value="Mata-Mata">Mata-Mata</option>
+                       <option value="Final">Final</option>
+                     </select>
+                     {editingCompId && (
+                       <div className="flex flex-col gap-2 mt-2">
+                         <button 
+                          onClick={() => setIsPhaseModalOpen(true)}
+                          className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-[#003b95] py-3 rounded-2xl font-black uppercase text-[9px] transition-all active:scale-95"
+                         >
+                           <Layers size={14}/> Criar Fases
+                         </button>
+                         {activeCompPhases.length > 0 && (
+                           <button 
+                            onClick={() => { setIsPhaseListModalOpen(true); setGroupConfigStep('list'); }}
+                            className="flex items-center justify-center gap-2 bg-white border-2 border-slate-100 hover:border-[#003b95]/20 hover:bg-slate-50 text-slate-500 py-3 rounded-2xl font-black uppercase text-[9px] transition-all active:scale-95"
+                           >
+                             <Settings2 size={14}/> Gerenciar Fases
+                           </button>
+                         )}
+                       </div>
+                     )}
+                   </div>
                  </div>
                </div>
 
@@ -721,23 +935,333 @@ export default function App() {
                    </select>
                  </div>
                </div>
+
+               {/* Equipes Card Grid 3 Columns */}
+               {editingCompId && (
+                 <div className="space-y-4 text-left animate-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-2 flex items-center gap-2">
+                        <Users size={12} className="text-[#003b95]"/> Equipes Inscritas ({activeCompTeams.length})
+                      </label>
+                    </div>
+                    
+                    <div className="bg-slate-50/50 p-6 rounded-[2.5rem] border border-slate-100 shadow-inner">
+                      {activeCompTeams.length === 0 ? (
+                        <div className="py-8 text-center opacity-40 italic text-[10px]">Sem equipes registradas para este torneio.</div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          {activeCompTeams.map(team => (
+                            <div 
+                              key={team.id} 
+                              className="bg-white px-4 py-3 rounded-2xl border border-slate-100 flex items-center gap-3 shadow-sm hover:border-[#003b95]/20 transition-all"
+                            >
+                              <div className="bg-slate-50 p-1.5 rounded-lg text-slate-200"><Shield size={14}/></div>
+                              <span className="text-[9px] font-black uppercase text-slate-700 truncate">{team.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                 </div>
+               )}
             </div>
 
             <div className="px-10 py-8 bg-slate-50 border-t border-slate-100 flex gap-4">
-               <button onClick={() => setIsCompModalOpen(false)} className="flex-1 py-5 rounded-2xl font-black uppercase text-[10px] text-slate-400 hover:text-slate-600 transition-all">Cancelar</button>
+               <button onClick={handleCloseCompModal} className="flex-1 py-5 rounded-2xl font-black uppercase text-[10px] text-slate-400 hover:text-slate-600 transition-all">Cancelar</button>
                <button 
-                onClick={handleCreateComp}
+                onClick={handleSaveComp}
                 className="flex-[2] bg-[#003b95] text-white py-5 rounded-2xl font-black uppercase text-[10px] shadow-xl hover:shadow-[#003b95]/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
                >
-                 <Plus size={16}/> Finalizar Cadastro
+                 <CheckCircle2 size={16}/> {editingCompId ? 'Salvar Alterações' : 'Finalizar Cadastro'}
                </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Modal: Cadastro de Nova Fase */}
+      {isPhaseModalOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300"
+            onClick={() => setIsPhaseModalOpen(false)}
+          ></div>
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl relative z-10 overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-300">
+            <div className="bg-slate-50 px-8 py-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                 <div className="bg-[#d90429] p-2.5 rounded-xl text-white shadow-lg"><Layers size={18}/></div>
+                 <h3 className="text-lg font-black text-slate-800 uppercase italic leading-none">Criar Nova Fase</h3>
+              </div>
+              <button onClick={() => setIsPhaseModalOpen(false)} className="p-2 text-slate-300 hover:text-slate-600 rounded-full transition-all">
+                <X size={20}/>
+              </button>
+            </div>
+
+            <div className="p-8 space-y-6">
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Nome da Fase</label>
+                <input 
+                  type="text" 
+                  placeholder="Ex: Oitavas de Final"
+                  className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-[#d90429]/10 transition-all"
+                  value={newPhaseData.name}
+                  onChange={e => setNewPhaseData({...newPhaseData, name: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Tipo de Disputa</label>
+                <select 
+                  className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-[#d90429]/10 transition-all cursor-pointer appearance-none"
+                  value={newPhaseData.type}
+                  onChange={e => setNewPhaseData({...newPhaseData, type: e.target.value as any})}
+                >
+                  <option value="Fase de Grupos">Fase de Grupos</option>
+                  <option value="Mata-Mata">Mata-Mata</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
+              <button 
+                onClick={handleSavePhase}
+                className="w-full bg-[#d90429] text-white py-4 rounded-xl font-black uppercase text-[10px] shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <Plus size={14}/> Gravar Fase
+              </button>
+              <button onClick={() => setIsPhaseModalOpen(false)} className="w-full py-2 font-black uppercase text-[10px] text-slate-400 hover:text-slate-600 transition-colors">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Listagem e Gerenciamento de Fases (Configuração de Grupos) */}
+      {isPhaseListModalOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300"
+            onClick={() => setIsPhaseListModalOpen(false)}
+          ></div>
+          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl relative z-10 overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+            <div className="bg-slate-50 px-8 py-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                 <div className="bg-[#003b95] p-2.5 rounded-xl text-white shadow-lg">
+                  {groupConfigStep === 'list' ? <Settings2 size={18}/> : <Layers size={18}/>}
+                 </div>
+                 <div>
+                  <h3 className="text-lg font-black text-slate-800 uppercase italic leading-none">
+                    {groupConfigStep === 'list' ? 'Gerenciar Fases' : 
+                     groupConfigStep === 'setup' ? `Configurar: ${configuringPhase?.name}` : 
+                     `Sorteio de Grupos: ${configuringPhase?.name}`}
+                  </h3>
+                  {groupConfigStep !== 'list' && (
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Torneio: {activeComp?.name}</span>
+                  )}
+                 </div>
+              </div>
+              <button onClick={() => setIsPhaseListModalOpen(false)} className="p-2 text-slate-300 hover:text-slate-600 rounded-full transition-all">
+                <X size={20}/>
+              </button>
+            </div>
+
+            <div className="flex-grow p-8 overflow-y-auto no-scrollbar">
+              {groupConfigStep === 'list' && (
+                <div className="space-y-4">
+                  {activeCompPhases.length === 0 ? (
+                    <div className="text-center py-20 opacity-20 flex flex-col items-center">
+                      <Layers size={56} className="mb-4"/>
+                      <p className="font-black uppercase text-sm tracking-widest">Nenhuma fase registrada</p>
+                    </div>
+                  ) : (
+                    activeCompPhases.map(p => (
+                      <div 
+                        key={p.id} 
+                        onClick={() => handlePhaseClick(p)}
+                        className={`flex items-center justify-between p-6 bg-slate-50 rounded-3xl border-2 border-slate-100 group transition-all cursor-pointer ${p.type === 'Fase de Grupos' ? 'hover:border-[#003b95] hover:bg-white' : 'hover:border-slate-300 opacity-80'}`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`p-3 rounded-2xl shadow-sm group-hover:scale-110 transition-all ${p.type === 'Fase de Grupos' ? 'bg-blue-100 text-[#003b95]' : 'bg-slate-200 text-slate-500'}`}>
+                            {p.type === 'Fase de Grupos' ? <Gamepad2 size={24}/> : <Target size={24}/>}
+                          </div>
+                          <div className="text-left">
+                            <p className="text-base font-black text-slate-800 uppercase leading-none mb-1">{p.name}</p>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{p.type}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleDeletePhase(p.id); }}
+                            className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                          >
+                            <Trash2 size={20}/>
+                          </button>
+                          {p.type === 'Fase de Grupos' && <ChevronRight className="text-[#003b95] group-hover:translate-x-1 transition-transform"/>}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {groupConfigStep === 'setup' && (
+                <div className="max-w-md mx-auto space-y-8 py-10 text-center animate-in zoom-in-95 duration-300">
+                  <div className="bg-slate-50 p-8 rounded-[3rem] border border-slate-100 shadow-inner">
+                    <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-md border border-slate-50">
+                      <Users className="text-[#003b95]" size={32}/>
+                    </div>
+                    <h4 className="font-black text-slate-800 uppercase text-lg mb-2">Estrutura da Fase</h4>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-8">
+                      {activeCompTeams.length} Equipes participando
+                    </p>
+                    
+                    <div className="space-y-4">
+                      <div className="text-left">
+                        <label className="text-[10px] font-black uppercase text-slate-400 ml-4 mb-2 block">Quantidade de Grupos</label>
+                        <input 
+                          type="number" 
+                          min="1"
+                          max={activeCompTeams.length}
+                          className="w-full p-5 bg-white border-2 border-slate-100 rounded-[1.5rem] font-black text-2xl text-center outline-none focus:border-[#003b95] transition-all"
+                          value={numGroups}
+                          onChange={e => setNumGroups(parseInt(e.target.value) || 1)}
+                        />
+                      </div>
+                      
+                      {activeCompTeams.length % numGroups !== 0 && (
+                        <div className="flex items-center gap-3 bg-red-50 text-red-500 p-4 rounded-2xl border border-red-100">
+                          <AlertCircle size={18}/>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-left">O número de times deve ser divisível pela quantidade de grupos.</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <button 
+                    disabled={activeCompTeams.length % numGroups !== 0}
+                    onClick={handleGenerateGroupStructure}
+                    className={`w-full py-5 rounded-[2rem] font-black uppercase text-xs shadow-xl transition-all flex items-center justify-center gap-3 ${
+                      activeCompTeams.length % numGroups !== 0 
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' 
+                      : 'bg-[#003b95] text-white hover:scale-[1.02] active:scale-95'
+                    }`}
+                  >
+                    Gerar Grupos <ArrowRight size={16}/>
+                  </button>
+                </div>
+              )}
+
+              {groupConfigStep === 'slots' && (
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 animate-in slide-in-from-right-4 duration-500">
+                  <div className="lg:col-span-1 space-y-4">
+                    <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 sticky top-0">
+                      <h4 className="font-black text-slate-800 uppercase text-[10px] tracking-widest mb-4 flex items-center gap-2">
+                        <UserPlus size={14} className="text-[#003b95]"/> Times Disponíveis ({availableTeams.length})
+                      </h4>
+                      <div className="space-y-2 max-h-[50vh] overflow-y-auto no-scrollbar pr-1">
+                        {availableTeams.map(t => (
+                          <button
+                            key={t.id}
+                            onClick={() => setSelectedTeamForAssignment(selectedTeamForAssignment === t.id.toString() ? null : t.id.toString())}
+                            className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition-all text-left ${
+                              selectedTeamForAssignment === t.id.toString() 
+                              ? 'bg-[#003b95] text-white border-[#003b95] shadow-lg ring-4 ring-[#003b95]/10' 
+                              : 'bg-white border-slate-100 text-slate-700 hover:border-[#003b95]/40'
+                            }`}
+                          >
+                            <Shield size={14} className={selectedTeamForAssignment === t.id.toString() ? 'text-white' : 'text-slate-200'}/>
+                            <span className="text-[9px] font-black uppercase truncate">{t.name}</span>
+                          </button>
+                        ))}
+                        {availableTeams.length === 0 && (
+                          <div className="py-10 text-center opacity-30 italic text-[9px]">Todos escalados!</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {Object.keys(groupAssignments).map(letter => (
+                        <div key={letter} className="bg-white p-6 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                          <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform">
+                            <span className="text-8xl font-black italic">{letter}</span>
+                          </div>
+                          <h5 className="font-black text-[#003b95] uppercase italic text-xl mb-6 relative z-10">Grupo {letter}</h5>
+                          
+                          <div className="space-y-3 relative z-10">
+                            {groupAssignments[letter].map((assignedId, idx) => {
+                              const assignedTeam = teams.find(t => t.id.toString() === assignedId);
+                              return (
+                                <button
+                                  key={`${letter}-${idx}`}
+                                  onClick={() => handleAssignTeamToSlot(letter, idx)}
+                                  className={`w-full min-h-[56px] rounded-3xl border-2 border-dashed flex items-center justify-between px-6 py-3 transition-all ${
+                                    assignedId 
+                                    ? 'bg-slate-50 border-transparent shadow-inner group/slot hover:bg-slate-100' 
+                                    : 'border-slate-100 text-slate-300 hover:border-[#003b95]/30 hover:bg-blue-50/30'
+                                  }`}
+                                >
+                                  {assignedId ? (
+                                    <>
+                                      <div className="flex items-center gap-3">
+                                        <Shield size={16} className="text-[#003b95]"/>
+                                        <span className="text-[10px] font-black uppercase text-slate-800">{assignedTeam?.name}</span>
+                                      </div>
+                                      <Trash2 size={14} className="text-slate-200 group-hover/slot:text-red-400 opacity-0 group-hover/slot:opacity-100 transition-all"/>
+                                    </>
+                                  ) : (
+                                    <div className="flex items-center gap-3 w-full justify-center">
+                                      <Plus size={14} className="opacity-40"/>
+                                      <span className="text-[9px] font-bold uppercase tracking-widest italic opacity-40">Posição {idx + 1}</span>
+                                    </div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex gap-4">
+              {groupConfigStep === 'list' ? (
+                <button onClick={() => setIsPhaseListModalOpen(false)} className="w-full py-5 bg-slate-800 text-white rounded-2xl font-black uppercase text-[10px] shadow-xl active:scale-95 transition-all">
+                  Fechar Gerenciamento
+                </button>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => {
+                      if (groupConfigStep === 'setup') setGroupConfigStep('list');
+                      if (groupConfigStep === 'slots') setGroupConfigStep('setup');
+                    }}
+                    className="flex-1 py-5 rounded-2xl font-black uppercase text-[10px] text-slate-400 hover:text-slate-600 transition-all"
+                  >
+                    Voltar
+                  </button>
+                  {groupConfigStep === 'slots' && (
+                    <button 
+                      onClick={() => { 
+                        alert("Configuração de grupos salva temporariamente! (Mock)");
+                        setIsPhaseListModalOpen(false); 
+                      }}
+                      className="flex-[2] bg-[#d90429] text-white py-5 rounded-2xl font-black uppercase text-[10px] shadow-xl hover:shadow-red-500/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
+                    >
+                      <CheckCircle2 size={16}/> Salvar Configuração de Grupos
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {syncing && (
-        <div className="fixed bottom-10 right-10 bg-slate-900/90 text-white px-8 py-5 rounded-[2rem] shadow-2xl flex items-center gap-4 z-[300] border border-white/10 backdrop-blur-md animate-in slide-in-from-right-10">
+        <div className="fixed bottom-10 right-10 bg-slate-900/90 text-white px-8 py-5 rounded-[2rem] shadow-2xl flex items-center gap-4 z-[400] border border-white/10 backdrop-blur-md animate-in slide-in-from-right-10">
           <Loader2 className="animate-spin text-blue-400" size={20} />
           <span className="text-[11px] font-black uppercase tracking-widest">Sincronizando Sistema...</span>
         </div>
@@ -760,16 +1284,12 @@ export default function App() {
   );
 }
 
-/**
- * Interface for GameCard props
- */
 interface GameCardProps {
   game: Game;
   teams: Team[];
   key?: React.Key;
 }
 
-// Componente de Card de Jogo
 function GameCard({ game, teams }: GameCardProps) {
   const homeTeam = teams.find(t => t.id.toString() === game.home_team_id.toString());
   const awayTeam = teams.find(t => t.id.toString() === game.away_team_id.toString());
