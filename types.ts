@@ -38,6 +38,7 @@ export interface Phase {
 export interface Game {
   id: string;
   competition_id: string;
+  phase_id?: string; // Novo campo para vincular jogo à fase
   home_team_id: string;
   away_team_id: string;
   home_score: number;

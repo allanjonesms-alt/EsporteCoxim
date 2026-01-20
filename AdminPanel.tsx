@@ -5,17 +5,12 @@ import {
   Loader2,
   Users,
   Trophy,
-  Gamepad2,
-  PlusCircle
+  Gamepad2
 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
-import { Competition, Team, Game, GameStatus, Phase } from './types';
+import { Competition, Team, Game, Phase } from './types';
 import TournamentManager from './TournamentManager';
 import GameManager from './GameManager';
-
-const SUPABASE_URL = 'https://pkwprsdejfyfokgscwdl.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBrd3Byc2RlamZ5Zm9rZ3Njd2RsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg1NzI5ODksImV4cCI6MjA4NDE0ODk4OX0.Ak4ytUV3HmULv5q-ZMOr5UYFrePQgo6uJU1910xLRfc';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+import { supabase } from './supabase';
 
 interface AdminPanelProps {
   competitions: Competition[];
@@ -29,7 +24,6 @@ export default function AdminPanel({ competitions, teams, games, phases, onRefre
   const [adminTab, setAdminTab] = useState<'comps' | 'teams' | 'games'>('comps');
   const [syncing, setSyncing] = useState(false);
   
-  // Local Team Logic (Will be moved to TeamManager.tsx next)
   const [newTeamName, setNewTeamName] = useState('');
 
   const handleCreateTeam = async (e: React.FormEvent) => {
@@ -78,6 +72,7 @@ export default function AdminPanel({ competitions, teams, games, phases, onRefre
           competitions={competitions} 
           teams={teams} 
           phases={phases} 
+          games={games}
           onRefresh={onRefresh} 
         />
       )}

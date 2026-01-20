@@ -3,17 +3,12 @@ import React, { useState } from 'react';
 import { 
   Trash2, 
   Loader2, 
-  Gamepad2, 
   PlusCircle, 
   Clock, 
-  Swords 
+  Trophy 
 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
 import { Competition, Team, Game, GameStatus } from './types';
-
-const SUPABASE_URL = 'https://pkwprsdejfyfokgscwdl.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBrd3Byc2RlamZ5Zm9rZ3Njd2RsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg1NzI5ODksImV4cCI6MjA4NDE0ODk4OX0.Ak4ytUV3HmULv5q-ZMOr5UYFrePQgo6uJU1910xLRfc';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+import { supabase } from './supabase';
 
 interface GameManagerProps {
   competitions: Competition[];
@@ -75,7 +70,6 @@ export default function GameManager({ competitions, teams, games, onRefresh }: G
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Formulário de Agendamento */}
       <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
         <div className="flex items-center gap-3 mb-6">
            <div className="bg-blue-50 p-2 rounded-xl text-[#003b95]"><Clock size={20}/></div>
@@ -111,57 +105,70 @@ export default function GameManager({ competitions, teams, games, onRefresh }: G
         </form>
       </div>
 
-      {/* Lista de Partidas para Edição */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {games.map(g => {
           const homeTeam = teams.find(t => t.id.toString() === g.home_team_id.toString());
           const awayTeam = teams.find(t => t.id.toString() === g.away_team_id.toString());
+          const comp = competitions.find(c => c.id.toString() === g.competition_id.toString());
           
           return (
-            <div key={g.id} className="bg-white p-6 rounded-[2.5rem] shadow-lg border border-slate-50 flex items-center justify-between hover:shadow-2xl transition-all group">
-              <div className="flex-1 flex flex-col items-center gap-2 px-2">
-                <p className="text-[9px] font-black uppercase text-slate-400 text-center truncate w-full">{homeTeam?.name || '???'}</p>
-                <input 
-                  type="number" 
-                  className="w-14 h-12 text-center font-black text-2xl bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-200" 
-                  value={g.home_score} 
-                  onChange={e => handleUpdateGame(g.id, parseInt(e.target.value) || 0, g.away_score, g.status)} 
-                />
-              </div>
-
-              <div className="flex flex-col items-center gap-3 px-4 min-w-[120px]">
-                <div className="flex items-center gap-1 text-slate-300">
-                   <Swords size={14} />
+            <div key={g.id} className="bg-white p-4 rounded-[1.5rem] shadow-md border border-slate-50 hover:shadow-lg transition-all relative group flex flex-col gap-3">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-1.5 text-slate-400">
+                  <Trophy size={10} />
+                  <span className="text-[9px] font-black uppercase italic tracking-wider truncate max-w-[120px]">{comp?.name || 'Torneio'}</span>
                 </div>
-                <select 
-                  value={g.status} 
-                  onChange={e => handleUpdateGame(g.id, g.home_score, g.away_score, e.target.value as GameStatus)} 
-                  className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-full outline-none transition-colors ${
-                    g.status === GameStatus.AO_VIVO ? 'bg-red-500 text-white animate-pulse' : 
-                    g.status === GameStatus.ENCERRADO ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'
-                  }`}
-                >
-                  {Object.values(GameStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <span className="text-[8px] font-bold text-slate-300">{new Date(g.game_date || '').toLocaleDateString('pt-BR')}</span>
+                <div className="flex items-center gap-2">
+                  <select 
+                    value={g.status} 
+                    onChange={e => handleUpdateGame(g.id, g.home_score, g.away_score, e.target.value as GameStatus)} 
+                    className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md outline-none transition-colors border-none bg-slate-50 text-slate-400 cursor-pointer ${
+                      g.status === GameStatus.AO_VIVO ? 'bg-red-50 text-red-500 ring-1 ring-red-100' : 
+                      g.status === GameStatus.ENCERRADO ? 'bg-slate-100 text-slate-800' : ''
+                    }`}
+                  >
+                    {Object.values(GameStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <button 
+                    onClick={() => handleDeleteGame(g.id)} 
+                    className="p-1 text-slate-200 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={12}/>
+                  </button>
+                </div>
               </div>
 
-              <div className="flex-1 flex flex-col items-center gap-2 px-2">
-                <p className="text-[9px] font-black uppercase text-slate-400 text-center truncate w-full">{awayTeam?.name || '???'}</p>
-                <input 
-                  type="number" 
-                  className="w-14 h-12 text-center font-black text-2xl bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-200" 
-                  value={g.away_score} 
-                  onChange={e => handleUpdateGame(g.id, g.home_score, parseInt(e.target.value) || 0, g.status)} 
-                />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[11px] font-black uppercase text-slate-800 tracking-tight truncate flex-1 text-left">
+                    {homeTeam?.name || 'Desconhecido'}
+                  </span>
+                  <input 
+                    type="number" 
+                    className="w-10 h-10 text-center font-black text-xl bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-100" 
+                    value={g.home_score} 
+                    onChange={e => handleUpdateGame(g.id, parseInt(e.target.value) || 0, g.away_score, g.status)} 
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[11px] font-black uppercase text-slate-800 tracking-tight truncate flex-1 text-left">
+                    {awayTeam?.name || 'Desconhecido'}
+                  </span>
+                  <input 
+                    type="number" 
+                    className="w-10 h-10 text-center font-black text-xl bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-100" 
+                    value={g.away_score} 
+                    onChange={e => handleUpdateGame(g.id, g.home_score, parseInt(e.target.value) || 0, g.status)} 
+                  />
+                </div>
               </div>
 
-              <button 
-                onClick={() => handleDeleteGame(g.id)} 
-                className="ml-4 p-2 text-slate-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-              >
-                <Trash2 size={16}/>
-              </button>
+              <div className="pt-2 border-t border-slate-50 flex justify-between items-center">
+                <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">
+                  {new Date(g.game_date || '').toLocaleDateString('pt-BR')}
+                </span>
+              </div>
             </div>
           );
         })}
