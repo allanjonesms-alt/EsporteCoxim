@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   TrophyIcon, 
@@ -9,7 +8,7 @@ import {
   ChevronRight, 
   Loader2,
   Trash2,
-  Pencil,
+  AlertTriangle,
   AlertCircle,
   ShieldAlert,
   Lock,
@@ -19,7 +18,9 @@ import {
   BarChart3,
   Eraser,
   CheckCircle2,
-  Shield
+  Shield,
+  Eye,
+  Swords
 } from 'lucide-react';
 import { Competition, Team, Game, CompStatus, GameStatus, Phase } from './types';
 import { DEFAULT_ADMIN } from './constants';
@@ -45,9 +46,11 @@ export default function TournamentManager({ competitions, teams, phases, games, 
   const [isMataMataSlotsOpen, setIsMataMataSlotsOpen] = useState(false);
   const [mataMataCount, setMataMataCount] = useState<number>(8);
   const [mataMataSlots, setMataMataSlots] = useState<string[]>([]);
+  const [showReconfigWarning, setShowReconfigWarning] = useState(false);
+  const [pendingPhase, setPendingPhase] = useState<Phase | null>(null);
 
-  // Novo estado para visualizar times de um grupo
   const [viewGroupDetails, setViewGroupDetails] = useState<{ name: string, teamIds: string[] } | null>(null);
+  const [phasePreview, setPhasePreview] = useState<Phase | null>(null);
 
   const [securityModal, setSecurityModal] = useState<{
     open: boolean;
@@ -77,7 +80,6 @@ export default function TournamentManager({ competitions, teams, phases, games, 
   const activeComp = competitions.find(c => c.id.toString() === editingCompId?.toString());
   const activeCompTeams = teams.filter(t => t.league === activeComp?.name);
 
-  // Função aprimorada para detectar grupos e seus times
   const getDetectedGroups = (phaseId: string) => {
     const phaseGames = games.filter(g => g.phase_id?.toString() === phaseId.toString());
     if (phaseGames.length === 0) return [];
@@ -219,6 +221,29 @@ export default function TournamentManager({ competitions, teams, phases, games, 
     }
     setSecurityModal({ open: false, type: null, phaseId: null });
     setSecurityPassword('');
+  };
+
+  const handlePhaseClick = (p: Phase) => {
+    const hasGames = games.some(g => g.phase_id?.toString() === p.id.toString());
+    
+    if (hasGames) {
+      setPendingPhase(p);
+      setShowReconfigWarning(true);
+    } else {
+      proceedToPhaseConfig(p);
+    }
+  };
+
+  const proceedToPhaseConfig = (p: Phase) => {
+    setActivePhaseId(p.id.toString());
+    if (p.type === 'Fase de Grupos') {
+      setGroupConfigStep('setup');
+    } else {
+      setIsPhaseListModalOpen(false);
+      setIsMataMataCountOpen(true);
+    }
+    setShowReconfigWarning(false);
+    setPendingPhase(null);
   };
 
   const handleSaveMataMata = async () => {
@@ -497,11 +522,7 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                     return (
                       <div key={p.id} className="flex items-center gap-2">
                         <button 
-                          onClick={() => { 
-                            setActivePhaseId(p.id.toString());
-                            if (p.type === 'Fase de Grupos') setGroupConfigStep('setup'); 
-                            else { setIsPhaseListModalOpen(false); setIsMataMataCountOpen(true); }
-                          }} 
+                          onClick={() => handlePhaseClick(p)} 
                           className="flex-1 p-6 bg-slate-50 rounded-3xl border-2 border-transparent hover:border-[#003b95] text-left flex justify-between items-center transition-all group"
                         >
                           <div className="flex flex-col gap-1">
@@ -511,17 +532,12 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                                 {p.type}
                               </span>
                             </div>
-                            {/* Exibição dos Grupos Criados (Agora Clicáveis) */}
                             {p.type === 'Fase de Grupos' && detectedGroups.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {detectedGroups.map(group => (
                                   <span 
                                     key={group.name} 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setViewGroupDetails(group);
-                                    }}
-                                    className="bg-white border border-blue-100 text-[#003b95] text-[7px] font-black px-2 py-0.5 rounded uppercase italic hover:bg-blue-50 cursor-pointer shadow-sm transition-all"
+                                    className="bg-white border border-blue-100 text-[#003b95] text-[7px] font-black px-2 py-0.5 rounded uppercase italic shadow-sm"
                                   >
                                     {group.name}
                                   </span>
@@ -534,12 +550,21 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                           </div>
                           <ChevronRight className="text-slate-300 group-hover:text-[#003b95]"/>
                         </button>
-                        <button 
-                          onClick={() => setSecurityModal({ open: true, type: 'delete', phaseId: p.id.toString() })} 
-                          className="p-3 bg-slate-100 rounded-2xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm"
-                        >
-                          <Trash2 size={16}/>
-                        </button>
+                        <div className="flex flex-col gap-2">
+                          <button 
+                            onClick={() => setPhasePreview(p)} 
+                            title="Visualizar Resumo"
+                            className="p-3 bg-blue-50 rounded-2xl text-[#003b95] hover:bg-[#003b95] hover:text-white transition-all shadow-sm"
+                          >
+                            <Eye size={16}/>
+                          </button>
+                          <button 
+                            onClick={() => setSecurityModal({ open: true, type: 'delete', phaseId: p.id.toString() })} 
+                            className="p-3 bg-slate-100 rounded-2xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm"
+                          >
+                            <Trash2 size={16}/>
+                          </button>
+                        </div>
                       </div>
                     )
                   })
@@ -598,6 +623,127 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Visualização de Resumo da Fase */}
+      {phasePreview && (
+        <div className="fixed inset-0 z-[650] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+           <div className="bg-white w-full max-w-lg rounded-[3rem] shadow-2xl p-10 max-h-[85vh] overflow-y-auto animate-in zoom-in-95 duration-200 relative">
+              <button 
+                onClick={() => setPhasePreview(null)} 
+                className="absolute top-6 right-6 text-slate-300 hover:text-slate-600 transition-colors"
+              >
+                <X />
+              </button>
+              
+              <div className="text-center mb-8">
+                <div className="bg-blue-50 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4 text-[#003b95] shadow-inner">
+                  <Layers size={32} />
+                </div>
+                <h4 className="text-2xl font-black uppercase italic text-slate-800">{phasePreview.name}</h4>
+                <div className="inline-flex items-center gap-2 mt-2">
+                  <span className={`text-[8px] font-black uppercase px-3 py-1 rounded-full ${phasePreview.type === 'Fase de Grupos' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                    {phasePreview.type}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {phasePreview.type === 'Fase de Grupos' ? (
+                  getDetectedGroups(phasePreview.id.toString()).map(group => {
+                    const groupGames = games.filter(g => 
+                      g.phase_id?.toString() === phasePreview.id.toString() &&
+                      group.teamIds.includes(g.home_team_id.toString()) &&
+                      group.teamIds.includes(g.away_team_id.toString())
+                    );
+
+                    return (
+                      <div key={group.name} className="bg-slate-50 rounded-[2.5rem] border border-slate-100 overflow-hidden">
+                        <div className="bg-[#003b95] px-6 py-3 flex justify-between items-center">
+                          <span className="text-white font-black uppercase italic text-xs tracking-widest">{group.name}</span>
+                          <span className="text-blue-200 font-bold uppercase text-[9px]">{groupGames.length} Partidas</span>
+                        </div>
+                        <div className="p-5 space-y-2">
+                          {groupGames.length === 0 ? (
+                            <p className="text-[10px] font-bold text-slate-400 uppercase italic text-center py-4">Sem jogos gerados</p>
+                          ) : (
+                            groupGames.map(game => {
+                              const h = teams.find(t => t.id.toString() === game.home_team_id.toString());
+                              const a = teams.find(t => t.id.toString() === game.away_team_id.toString());
+                              return (
+                                <div key={game.id} className="flex items-center justify-between gap-4 p-3 bg-white rounded-xl border border-slate-100 shadow-sm">
+                                  <span className="text-[10px] font-black uppercase text-slate-700 truncate flex-1">{h?.name || '---'}</span>
+                                  <Swords size={12} className="text-slate-300 shrink-0" />
+                                  <span className="text-[10px] font-black uppercase text-slate-700 truncate flex-1 text-right">{a?.name || '---'}</span>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Tabela de Confrontos</p>
+                    {games.filter(g => g.phase_id?.toString() === phasePreview.id.toString()).map(game => {
+                      const h = teams.find(t => t.id.toString() === game.home_team_id.toString());
+                      const a = teams.find(t => t.id.toString() === game.away_team_id.toString());
+                      return (
+                        <div key={game.id} className="flex items-center justify-between gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm hover:border-[#003b95] transition-all group">
+                          <span className="text-[11px] font-black uppercase text-slate-800 flex-1 truncate group-hover:text-[#003b95]">{h?.name || '---'}</span>
+                          <div className="bg-[#d90429] text-white px-3 py-1 rounded-lg text-[9px] font-black italic">VS</div>
+                          <span className="text-[11px] font-black uppercase text-slate-800 flex-1 truncate text-right group-hover:text-[#003b95]">{a?.name || '---'}</span>
+                        </div>
+                      );
+                    })}
+                    {games.filter(g => g.phase_id?.toString() === phasePreview.id.toString()).length === 0 && (
+                       <div className="text-center py-10 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                         <p className="text-[10px] font-black uppercase text-slate-300">Estrutura de mata-mata não gerada</p>
+                       </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <button 
+                onClick={() => setPhasePreview(null)} 
+                className="w-full mt-10 bg-[#003b95] text-white py-5 rounded-[1.5rem] font-black uppercase text-xs shadow-xl shadow-blue-900/20 hover:scale-[1.02] active:scale-95 transition-all"
+              >
+                Fechar Resumo
+              </button>
+           </div>
+        </div>
+      )}
+
+      {/* Modal de Aviso de Reconfiguração */}
+      {showReconfigWarning && pendingPhase && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+          <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl animate-in zoom-in-95 duration-200 text-center">
+            <div className="bg-orange-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 text-orange-500">
+              <AlertTriangle size={48} />
+            </div>
+            <h4 className="text-2xl font-black uppercase italic text-slate-800 mb-4">Jogos já Gerados!</h4>
+            <p className="text-slate-500 text-sm font-medium leading-relaxed mb-8">
+              A fase <span className="font-black text-[#003b95]">"{pendingPhase.name}"</span> já possui partidas registradas. 
+              Ao continuar a edição, os jogos atuais serão <span className="text-red-500 font-bold">excluídos permanentemente</span> para dar lugar à nova configuração.
+            </p>
+            <div className="space-y-3">
+              <button 
+                onClick={() => proceedToPhaseConfig(pendingPhase)}
+                className="w-full bg-[#003b95] text-white py-5 rounded-2xl font-black uppercase text-xs shadow-xl hover:bg-[#002b6d] transition-all"
+              >
+                Ciente, Prosseguir
+              </button>
+              <button 
+                onClick={() => { setShowReconfigWarning(false); setPendingPhase(null); }}
+                className="w-full py-4 text-slate-400 font-black uppercase text-[10px] hover:text-slate-600 transition-colors"
+              >
+                Cancelar Edição
+              </button>
+            </div>
           </div>
         </div>
       )}
