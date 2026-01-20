@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Trash2, 
@@ -7,17 +6,18 @@ import {
   Clock, 
   Trophy 
 } from 'lucide-react';
-import { Competition, Team, Game, GameStatus } from './types';
+import { Competition, Team, Game, GameStatus, Phase } from './types';
 import { supabase } from './supabase';
 
 interface GameManagerProps {
   competitions: Competition[];
   teams: Team[];
   games: Game[];
+  phases: Phase[];
   onRefresh: () => Promise<void>;
 }
 
-export default function GameManager({ competitions, teams, games, onRefresh }: GameManagerProps) {
+export default function GameManager({ competitions, teams, games, phases, onRefresh }: GameManagerProps) {
   const [syncing, setSyncing] = useState(false);
   const [newGame, setNewGame] = useState({
     compId: '',
@@ -110,13 +110,16 @@ export default function GameManager({ competitions, teams, games, onRefresh }: G
           const homeTeam = teams.find(t => t.id.toString() === g.home_team_id.toString());
           const awayTeam = teams.find(t => t.id.toString() === g.away_team_id.toString());
           const comp = competitions.find(c => c.id.toString() === g.competition_id.toString());
+          const phase = phases.find(p => p.id.toString() === g.phase_id?.toString());
           
           return (
             <div key={g.id} className="bg-white p-4 rounded-[1.5rem] shadow-md border border-slate-50 hover:shadow-lg transition-all relative group flex flex-col gap-3">
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-1.5 text-slate-400">
                   <Trophy size={10} />
-                  <span className="text-[9px] font-black uppercase italic tracking-wider truncate max-w-[120px]">{comp?.name || 'Torneio'}</span>
+                  <span className="text-[9px] font-black uppercase italic tracking-wider truncate max-w-[200px]">
+                    {comp?.name || 'Torneio'} {phase ? `• ${phase.name}` : ''}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <select 

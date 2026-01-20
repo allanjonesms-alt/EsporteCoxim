@@ -8,7 +8,8 @@ import {
   Loader2, 
   TrophyIcon,
   LogOut,
-  CheckCircle2
+  CheckCircle2,
+  Gamepad2
 } from 'lucide-react';
 import { Competition, Team, Game, CompStatus, GameStatus, Phase } from './types';
 import { DEFAULT_ADMIN } from './constants';
@@ -29,7 +30,6 @@ export default function App() {
   const [loginForm, setLoginForm] = useState({ phone: '67984373039', pass: '@Jones2028' });
 
   const fetchData = async () => {
-    setLoading(true);
     try {
       const [cRes, tRes, gRes, pRes] = await Promise.all([
         supabase.from('leagues').select('*').order('id', { ascending: false }),
@@ -46,7 +46,40 @@ export default function App() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    setLoading(true);
+    fetchData(); 
+  }, []);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leagues' },
+        () => fetchData()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'teams' },
+        () => fetchData()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'games' },
+        () => fetchData()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'phases' },
+        () => fetchData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,13 +91,17 @@ export default function App() {
   };
 
   const activeComp = competitions.find(c => c.id.toString() === selectedCompId);
+  
   const standings = useMemo(() => {
     if (!activeComp) return [];
     const stats: Record<string, any> = {};
-    const teamList = activeComp.team_ids || [];
+    
+    const teamList = teams
+      .filter(t => t.league?.toString() === activeComp.name)
+      .map(t => t.id.toString());
     
     const currentGames = games.filter(g => g.competition_id.toString() === activeComp.id.toString());
-    const ids = teamList.length ? teamList : Array.from(new Set(currentGames.flatMap(g => [g.home_team_id, g.away_team_id])));
+    const ids = teamList.length ? teamList : Array.from(new Set(currentGames.flatMap(g => [g.home_team_id.toString(), g.away_team_id.toString()])));
 
     ids.forEach(tid => {
       const t = teams.find(team => team.id.toString() === tid.toString());
@@ -72,7 +109,7 @@ export default function App() {
     });
 
     currentGames.filter(g => g.status === GameStatus.ENCERRADO).forEach(g => {
-      const h = g.home_team_id; const a = g.away_team_id;
+      const h = g.home_team_id.toString(); const a = g.away_team_id.toString();
       if (stats[h] && stats[a]) {
         stats[h].pj++; stats[a].pj++;
         stats[h].gf += g.home_score; stats[h].ga += g.away_score;
@@ -87,15 +124,6 @@ export default function App() {
       .map((s: any) => ({ ...s, sg: s.gf - s.ga }))
       .sort((a, b) => b.pts - a.pts || b.v - a.v || b.sg - a.sg);
   }, [activeComp, games, teams]);
-
-  const groupedGames = useMemo(() => {
-    const filtered = games.filter(g => g.competition_id.toString() === selectedCompId);
-    return {
-      ao_vivo: filtered.filter(g => g.status === GameStatus.AO_VIVO),
-      agendado: filtered.filter(g => g.status === GameStatus.AGENDADO),
-      encerrado: filtered.filter(g => g.status === GameStatus.ENCERRADO)
-    };
-  }, [games, selectedCompId]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans">
@@ -155,17 +183,31 @@ export default function App() {
         ) : view === 'admin' ? (
           <AdminPanel competitions={competitions} teams={teams} games={games} phases={phases} onRefresh={fetchData} />
         ) : (
-          <div className="space-y-10 animate-in fade-in duration-700">
-            {/* User content rendered here */}
+          <div className="space-y-8 animate-in fade-in duration-700">
+            {/* Seletor de Abas - Usuário */}
+            <div className="flex p-1.5 bg-slate-200/50 rounded-2xl shadow-inner border border-slate-200 w-fit mx-auto mb-4">
+              <button 
+                onClick={() => setActiveTab('classificacao')} 
+                className={`px-8 py-2.5 rounded-xl font-black text-[10px] uppercase transition-all flex items-center gap-2 ${activeTab === 'classificacao' ? 'bg-[#003b95] text-white shadow-lg scale-105' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <Trophy size={14} /> Classificação
+              </button>
+              <button 
+                onClick={() => setActiveTab('jogos')} 
+                className={`px-8 py-2.5 rounded-xl font-black text-[10px] uppercase transition-all flex items-center gap-2 ${activeTab === 'jogos' ? 'bg-[#003b95] text-white shadow-lg scale-105' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <Gamepad2 size={14} /> Jogos
+              </button>
+            </div>
+
             {activeTab === 'classificacao' && (
               <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden">
                 <div className="bg-[#003b95] px-10 py-6 flex items-center justify-between">
                    <div className="flex items-center gap-3">
                       <TrophyIcon size={24} className="text-white" />
-                      <h3 className="font-black italic uppercase text-white text-lg">{activeComp?.current_phase || 'Classificação'}</h3>
+                      <h3 className="font-black italic uppercase text-white text-lg">{activeComp?.current_phase || 'Tabela de Classificação'}</h3>
                    </div>
                 </div>
-                {/* Table implementation */}
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-400 font-black uppercase border-b border-slate-100">
@@ -193,12 +235,94 @@ export default function App() {
                           <td className={`px-4 py-6 text-center font-black ${team.sg > 0 ? 'text-green-500' : 'text-red-400'}`}>{team.sg}</td>
                         </tr>
                       ))}
+                      {standings.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="px-10 py-20 text-center text-slate-300 font-black uppercase italic tracking-widest">Nenhuma equipe vinculada ou sem jogos registrados</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
             )}
-            {/* Rest of UI components */}
+
+            {activeTab === 'jogos' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-in slide-in-from-bottom-4 duration-500">
+                {games
+                  .filter(g => g.competition_id.toString() === selectedCompId)
+                  .map(g => {
+                    const homeTeam = teams.find(t => t.id.toString() === g.home_team_id.toString());
+                    const awayTeam = teams.find(t => t.id.toString() === g.away_team_id.toString());
+                    const comp = competitions.find(c => c.id.toString() === g.competition_id.toString());
+                    const phase = phases.find(p => p.id.toString() === g.phase_id?.toString());
+                    
+                    return (
+                      <div key={g.id} className="bg-white p-5 rounded-[2rem] shadow-xl border border-slate-50 hover:shadow-2xl transition-all flex flex-col gap-4">
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center gap-1.5 text-slate-400">
+                            <TrophyIcon size={12} className="text-[#003b95]" />
+                            <span className="text-[9px] font-black uppercase italic tracking-wider truncate max-w-[200px]">
+                              {phase?.name || 'Partida'}
+                            </span>
+                          </div>
+                          <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${
+                            g.status === GameStatus.AO_VIVO ? 'bg-red-50 text-red-500 ring-1 ring-red-100 animate-pulse' : 
+                            g.status === GameStatus.ENCERRADO ? 'bg-slate-100 text-slate-800' : 'bg-slate-50 text-slate-400'
+                          }`}>
+                            {g.status}
+                          </span>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-2 flex-1">
+                              <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center border border-slate-100">
+                                <Shield className="text-slate-200 w-4 h-4" />
+                              </div>
+                              <span className="text-[11px] font-black uppercase text-slate-800 tracking-tight truncate">
+                                {homeTeam?.name || 'Desconhecido'}
+                              </span>
+                            </div>
+                            <span className="text-2xl font-black italic text-slate-900">{g.home_score}</span>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-2 flex-1">
+                              <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center border border-slate-100">
+                                <Shield className="text-slate-200 w-4 h-4" />
+                              </div>
+                              <span className="text-[11px] font-black uppercase text-slate-800 tracking-tight truncate">
+                                {awayTeam?.name || 'Desconhecido'}
+                              </span>
+                            </div>
+                            <span className="text-2xl font-black italic text-slate-900">{g.away_score}</span>
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-50 flex justify-between items-center">
+                          <div className="flex items-center gap-1.5 text-slate-300">
+                            <Calendar size={12} />
+                            <span className="text-[8px] font-bold uppercase tracking-widest italic">
+                              {g.game_date ? new Date(g.game_date).toLocaleDateString('pt-BR') : 'Agendado'}
+                            </span>
+                          </div>
+                          {g.status === GameStatus.AO_VIVO && (
+                            <span className="flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping"></span>
+                              <span className="text-[7px] font-black text-red-500 uppercase">Live Now</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                {games.filter(g => g.competition_id.toString() === selectedCompId).length === 0 && (
+                  <div className="col-span-full py-20 text-center">
+                    <p className="text-[10px] font-black uppercase text-slate-300 italic tracking-widest">Nenhuma partida registrada nesta competição</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>
