@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   TrophyIcon, 
@@ -17,7 +18,8 @@ import {
   Dices,
   BarChart3,
   Eraser,
-  CheckCircle2
+  CheckCircle2,
+  Shield
 } from 'lucide-react';
 import { Competition, Team, Game, CompStatus, GameStatus, Phase } from './types';
 import { DEFAULT_ADMIN } from './constants';
@@ -43,6 +45,9 @@ export default function TournamentManager({ competitions, teams, phases, games, 
   const [isMataMataSlotsOpen, setIsMataMataSlotsOpen] = useState(false);
   const [mataMataCount, setMataMataCount] = useState<number>(8);
   const [mataMataSlots, setMataMataSlots] = useState<string[]>([]);
+
+  // Novo estado para visualizar times de um grupo
+  const [viewGroupDetails, setViewGroupDetails] = useState<{ name: string, teamIds: string[] } | null>(null);
 
   const [securityModal, setSecurityModal] = useState<{
     open: boolean;
@@ -70,17 +75,59 @@ export default function TournamentManager({ competitions, teams, phases, games, 
   const [activePhaseId, setActivePhaseId] = useState<string | null>(null);
 
   const activeComp = competitions.find(c => c.id.toString() === editingCompId?.toString());
-  // Filtro: teams.league === leagues.name
   const activeCompTeams = teams.filter(t => t.league === activeComp?.name);
+
+  // Função aprimorada para detectar grupos e seus times
+  const getDetectedGroups = (phaseId: string) => {
+    const phaseGames = games.filter(g => g.phase_id?.toString() === phaseId.toString());
+    if (phaseGames.length === 0) return [];
+
+    const sets: Set<string>[] = [];
+    phaseGames.forEach(g => {
+      const h = g.home_team_id.toString();
+      const a = g.away_team_id.toString();
+      
+      let foundSetIdx = -1;
+      sets.forEach((set, idx) => {
+        if (set.has(h) || set.has(a)) {
+          foundSetIdx = idx;
+        }
+      });
+
+      if (foundSetIdx !== -1) {
+        sets[foundSetIdx].add(h);
+        sets[foundSetIdx].add(a);
+      } else {
+        sets.push(new Set([h, a]));
+      }
+    });
+
+    const finalSets: Set<string>[] = [];
+    sets.forEach(currentSet => {
+      let merged = false;
+      for (const finalSet of finalSets) {
+        const intersection = new Set([...currentSet].filter(x => finalSet.has(x)));
+        if (intersection.size > 0) {
+          currentSet.forEach(item => finalSet.add(item));
+          merged = true;
+          break;
+        }
+      }
+      if (!merged) finalSets.push(currentSet);
+    });
+
+    return finalSets.map((set, i) => ({
+      name: `GRUPO ${String.fromCharCode(65 + i)}`,
+      teamIds: Array.from(set)
+    }));
+  };
 
   const handleApplyMacro = (type: 'random' | 'seed' | 'clear') => {
     if (type === 'clear') {
       setMataMataSlots(new Array(mataMataCount).fill(''));
       return;
     }
-
     const availableIds = activeCompTeams.map(t => t.id.toString());
-    
     if (type === 'random') {
       const shuffled = shuffleArray(availableIds).slice(0, mataMataCount);
       const nextSlots = new Array(mataMataCount).fill('');
@@ -108,7 +155,6 @@ export default function TournamentManager({ competitions, teams, phases, games, 
         date: newCompData.date || new Date().toISOString().split('T')[0],
         current_phase: newCompData.phase
       };
-
       if (editingCompId) {
         const { error } = await supabase.from('leagues').update(payload).eq('id', editingCompId);
         if (error) throw error;
@@ -118,42 +164,31 @@ export default function TournamentManager({ competitions, teams, phases, games, 
         if (error) throw error;
         setEditingCompId(manualId);
       }
-      
       await onRefresh();
       alert("Configurações do torneio salvas com sucesso!");
-    } catch (err: any) { 
-      alert("Erro ao salvar: " + err.message); 
-    } finally { 
-      setSyncing(false); 
-    }
+    } catch (err: any) { alert("Erro ao salvar: " + err.message); } 
+    finally { setSyncing(false); }
   };
 
   const handleSavePhase = async () => {
     if (!editingCompId) return alert("Salve o torneio antes de adicionar fases.");
     if (!newPhaseData.name) return alert("Preencha o nome da fase.");
-    
     setSyncing(true);
     try {
       const manualId = `phase_${Date.now()}`;
-      
       const { error } = await supabase.from('phases').insert({
         id: manualId,
         competitions_id: editingCompId,
         name: newPhaseData.name.toUpperCase(),
         type: newPhaseData.type
       });
-
       if (error) throw error;
-
       setIsPhaseModalOpen(false);
       setNewPhaseData({ name: '', type: 'Fase de Grupos' });
       await onRefresh();
       alert(`Fase "${newPhaseData.name.toUpperCase()}" criada com sucesso.`);
-    } catch (err: any) { 
-      alert("Erro ao criar fase: " + err.message); 
-    } finally { 
-      setSyncing(false); 
-    }
+    } catch (err: any) { alert("Erro ao criar fase: " + err.message); } 
+    finally { setSyncing(false); }
   };
 
   const handleSecurityConfirm = async () => {
@@ -161,9 +196,7 @@ export default function TournamentManager({ competitions, teams, phases, games, 
       alert("Senha incorreta! Operação cancelada.");
       return;
     }
-
     const { type, phaseId } = securityModal;
-
     if (type === 'delete' && phaseId) {
       setSyncing(true);
       try {
@@ -172,11 +205,8 @@ export default function TournamentManager({ competitions, teams, phases, games, 
         if (error) throw error;
         await onRefresh();
         alert("Fase e todos os seus jogos foram excluídos permanentemente.");
-      } catch (err: any) { 
-        alert("Erro ao excluir: " + err.message); 
-      } finally { 
-        setSyncing(false); 
-      }
+      } catch (err: any) { alert("Erro ao excluir: " + err.message); } 
+      finally { setSyncing(false); }
     } else if (type === 'edit' && phaseId) {
       const selectedPhase = phases.find(p => p.id.toString() === phaseId);
       setActivePhaseId(phaseId);
@@ -187,7 +217,6 @@ export default function TournamentManager({ competitions, teams, phases, games, 
         setGroupConfigStep('setup');
       }
     }
-
     setSecurityModal({ open: false, type: null, phaseId: null });
     setSecurityPassword('');
   };
@@ -197,7 +226,6 @@ export default function TournamentManager({ competitions, teams, phases, games, 
     setSyncing(true);
     try {
       await supabase.from('games').delete().eq('phase_id', activePhaseId);
-      
       const newGames: any[] = [];
       for (let i = 0; i < mataMataSlots.length; i += 2) {
         const home = mataMataSlots[i];
@@ -213,29 +241,23 @@ export default function TournamentManager({ competitions, teams, phases, games, 
           });
         }
       }
-
       if (newGames.length > 0) {
         const { error } = await supabase.from('games').insert(newGames);
         if (error) throw error;
       }
-
       setIsMataMataSlotsOpen(false);
       setActivePhaseId(null);
       await onRefresh();
       alert("Chaveamento de mata-mata gerado com sucesso!");
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setSyncing(false);
-    }
+    } catch (err: any) { alert(err.message); } 
+    finally { setSyncing(false); }
   };
 
   const activeCompPhases = phases.filter(p => p.competitions_id.toString() === editingCompId?.toString());
 
   const handleGenerateGroupStructure = () => {
     const numParticipants = activeCompTeams.length;
-    if (numParticipants === 0) return alert("Não há times vinculados a este torneio (leagues.name === teams.league) para gerar grupos.");
-    
+    if (numParticipants === 0) return alert("Não há times vinculados para gerar grupos.");
     const slots = Math.ceil(numParticipants / numGroups);
     const initial: Record<string, string[]> = {};
     for (let i = 0; i < numGroups; i++) {
@@ -247,21 +269,16 @@ export default function TournamentManager({ competitions, teams, phases, games, 
 
   const handleAssignTeam = (letter: string, idx: number) => {
     const next = { ...groupAssignments };
-    if (!selectedTeamForAssignment) {
-      next[letter][idx] = '';
-    } else {
-      next[letter][idx] = selectedTeamForAssignment;
-    }
+    next[letter][idx] = selectedTeamForAssignment || '';
     setGroupAssignments(next);
     setSelectedTeamForAssignment(null);
   };
 
   const handleSaveGroups = async () => {
-    if (!activePhaseId) return alert("Nenhuma fase selecionada para salvar.");
+    if (!activePhaseId) return alert("Nenhuma fase selecionada.");
     setSyncing(true);
     try {
       await supabase.from('games').delete().eq('phase_id', activePhaseId);
-
       const newGames: any[] = [];
       Object.entries(groupAssignments).forEach(([letter, ids]) => {
         const valid = (ids as string[]).filter(id => id !== '');
@@ -278,21 +295,16 @@ export default function TournamentManager({ competitions, teams, phases, games, 
           }
         }
       });
-
       if (newGames.length > 0) {
         const { error } = await supabase.from('games').insert(newGames);
         if (error) throw error;
       }
-
       setIsPhaseListModalOpen(false);
       setActivePhaseId(null);
       await onRefresh();
       alert("Tabela de jogos gerada com sucesso!");
-    } catch (err: any) { 
-      alert(err.message); 
-    } finally { 
-      setSyncing(false); 
-    }
+    } catch (err: any) { alert(err.message); } 
+    finally { setSyncing(false); }
   };
 
   return (
@@ -307,7 +319,7 @@ export default function TournamentManager({ competitions, teams, phases, games, 
           }} 
           className="bg-[#003b95] text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] flex items-center gap-2 shadow-lg hover:scale-105 transition-transform"
         >
-          <PlusCircle size(16}/> Novo Torneio
+          <PlusCircle size={16} /> Novo Torneio
         </button>
       </div>
 
@@ -348,7 +360,6 @@ export default function TournamentManager({ competitions, teams, phases, games, 
             <h3 className="text-2xl font-black uppercase italic mb-8 flex items-center gap-3">
                <Settings2 className="text-[#003b95]" /> Configurar Torneio
             </h3>
-            
             <div className="space-y-6">
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Nome da Competição</label>
@@ -359,7 +370,6 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                   onChange={e => setNewCompData({...newCompData, name: e.target.value})} 
                 />
               </div>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Status Atual</label>
@@ -383,17 +393,13 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                   />
                 </div>
               </div>
-
               <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
                 <h4 className="text-[10px] font-black uppercase text-slate-400 mb-4">Ações da Competição</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <button 
                     onClick={() => {
-                      if(!editingCompId) {
-                        alert("Salve o torneio primeiro para habilitar as fases.");
-                      } else {
-                        setIsPhaseModalOpen(true);
-                      }
+                      if(!editingCompId) alert("Salve o torneio primeiro.");
+                      else setIsPhaseModalOpen(true);
                     }} 
                     className={`p-4 rounded-2xl font-black uppercase text-[9px] flex items-center justify-center gap-2 transition-all ${editingCompId ? 'bg-white shadow-sm hover:bg-slate-100' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
                   >
@@ -406,7 +412,6 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                   )}
                 </div>
               </div>
-
               <div className="flex gap-4">
                 <button onClick={handleSaveComp} className="flex-1 bg-[#d90429] text-white py-5 rounded-2xl font-black uppercase shadow-xl hover:bg-[#b00322] transition-colors">
                   Salvar Configurações
@@ -436,7 +441,6 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                       <option value="Mata-Mata">Mata-Mata</option>
                    </select>
                  </div>
-
                  <div className="space-y-1">
                    <label className="text-[9px] font-black uppercase text-slate-400 ml-2">Nome da Fase</label>
                    {newPhaseData.type === 'Mata-Mata' ? (
@@ -461,12 +465,6 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                      />
                    )}
                  </div>
-
-                 <div className="bg-blue-50 p-4 rounded-2xl flex items-start gap-3">
-                   <AlertCircle size={16} className="text-[#003b95] mt-1 shrink-0" />
-                   <p className="text-[8px] font-bold text-blue-900 uppercase leading-relaxed">A fase será vinculada ao torneio "{newCompData.name}".</p>
-                 </div>
-
                  <div className="flex gap-2 pt-4">
                     <button onClick={() => { setIsPhaseModalOpen(false); setNewPhaseData({name: '', type: 'Fase de Grupos'}); }} className="flex-1 py-4 font-black uppercase text-[10px] text-slate-400 hover:text-slate-600">Cancelar</button>
                     <button onClick={handleSavePhase} className="flex-[2] bg-[#003b95] text-white py-4 rounded-xl font-black uppercase text-[10px] shadow-lg shadow-blue-900/10 hover:bg-[#002b6d]">Registrar Fase</button>
@@ -489,48 +487,59 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                 <p className="text-[10px] font-bold text-slate-400 uppercase mb-4">Selecione a fase para configurar:</p>
                 {activeCompPhases.length === 0 ? (
                   <div className="text-center py-10">
-                    <p className="text-[10px] font-black uppercase text-slate-300">Nenhuma fase criada para este torneio.</p>
+                    <p className="text-[10px] font-black uppercase text-slate-300">Nenhuma fase criada.</p>
                   </div>
                 ) : (
                   activeCompPhases.map(p => {
                     const isConfigured = games.some(g => g.phase_id?.toString() === p.id.toString());
+                    const detectedGroups = p.type === 'Fase de Grupos' ? getDetectedGroups(p.id.toString()) : [];
+                    
                     return (
                       <div key={p.id} className="flex items-center gap-2">
                         <button 
                           onClick={() => { 
-                            if (p.type === 'Fase de Grupos') {
-                              setActivePhaseId(p.id.toString()); 
-                              setGroupConfigStep('setup'); 
-                            } else {
-                              setActivePhaseId(p.id.toString());
-                              setIsPhaseListModalOpen(false);
-                              setIsMataMataCountOpen(true);
-                            }
+                            setActivePhaseId(p.id.toString());
+                            if (p.type === 'Fase de Grupos') setGroupConfigStep('setup'); 
+                            else { setIsPhaseListModalOpen(false); setIsMataMataCountOpen(true); }
                           }} 
                           className="flex-1 p-6 bg-slate-50 rounded-3xl border-2 border-transparent hover:border-[#003b95] text-left flex justify-between items-center transition-all group"
                         >
-                          <div className="flex flex-col">
+                          <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
                               <span className="font-black uppercase text-slate-700 group-hover:text-[#003b95]">{p.name}</span>
                               <span className={`text-[7px] font-black uppercase px-2 py-0.5 rounded ${p.type === 'Fase de Grupos' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
                                 {p.type}
                               </span>
                             </div>
-                            {isConfigured && (
-                              <span className="text-[8px] font-bold text-green-500 uppercase mt-0.5 tracking-wider italic">Já possui jogos vinculados</span>
+                            {/* Exibição dos Grupos Criados (Agora Clicáveis) */}
+                            {p.type === 'Fase de Grupos' && detectedGroups.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {detectedGroups.map(group => (
+                                  <span 
+                                    key={group.name} 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setViewGroupDetails(group);
+                                    }}
+                                    className="bg-white border border-blue-100 text-[#003b95] text-[7px] font-black px-2 py-0.5 rounded uppercase italic hover:bg-blue-50 cursor-pointer shadow-sm transition-all"
+                                  >
+                                    {group.name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {isConfigured && detectedGroups.length === 0 && (
+                              <span className="text-[8px] font-bold text-green-500 uppercase mt-0.5 tracking-wider italic">Estrutura de jogos gerada</span>
                             )}
                           </div>
                           <ChevronRight className="text-slate-300 group-hover:text-[#003b95]"/>
                         </button>
-                        <div className="flex flex-col gap-2">
-                          <button 
-                            onClick={() => setSecurityModal({ open: true, type: 'delete', phaseId: p.id.toString() })} 
-                            className="p-3 bg-slate-100 rounded-2xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm" 
-                            title="Excluir Fase"
-                          >
-                            <Trash2 size={16}/>
-                          </button>
-                        </div>
+                        <button 
+                          onClick={() => setSecurityModal({ open: true, type: 'delete', phaseId: p.id.toString() })} 
+                          className="p-3 bg-slate-100 rounded-2xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm"
+                        >
+                          <Trash2 size={16}/>
+                        </button>
                       </div>
                     )
                   })
@@ -546,7 +555,7 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setGroupConfigStep('list')} className="flex-1 py-5 text-slate-400 font-black uppercase text-[10px]">Voltar</button>
-                  <button onClick={handleGenerateGroupStructure} className="flex-[2] py-5 bg-[#003b95] text-white rounded-3xl font-black uppercase shadow-xl hover:bg-[#002b6d] transition-colors">Próximo: Definir Vagas</button>
+                  <button onClick={handleGenerateGroupStructure} className="flex-[2] py-5 bg-[#003b95] text-white rounded-3xl font-black uppercase shadow-xl hover:bg-[#002b6d] transition-colors">Próximo</button>
                 </div>
               </div>
             )}
@@ -554,7 +563,7 @@ export default function TournamentManager({ competitions, teams, phases, games, 
             {groupConfigStep === 'slots' && (
               <div className="space-y-8">
                 <div className="p-6 bg-blue-50 rounded-3xl">
-                   <p className="text-[10px] font-black uppercase text-[#003b95] mb-4">1. Selecione um clube (Filtro: Liga === "{activeComp?.name}"):</p>
+                   <p className="text-[10px] font-black uppercase text-[#003b95] mb-4">1. Selecione um clube:</p>
                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {activeCompTeams.map(t => (
                       <button 
@@ -565,20 +574,17 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                         {t.name}
                       </button>
                     ))}
-                    {activeCompTeams.length === 0 && <p className="col-span-3 text-center text-[9px] font-bold text-slate-400 py-4 italic uppercase">Nenhum clube tem a liga "{activeComp?.name}" em seu cadastro.</p>}
                   </div>
                 </div>
-
                 <div className="space-y-4">
-                  <p className="text-[10px] font-black uppercase text-slate-400 mb-2">2. Clique na vaga para preencher:</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {Object.keys(groupAssignments).map(letter => (
                       <div key={letter} className="p-4 bg-slate-50 rounded-[2rem] border border-slate-100">
-                        <h5 className="font-black bg-[#003b95] text-white p-2 rounded-xl text-[10px] text-center mb-4 uppercase italic shadow-sm">Grupo {letter}</h5>
+                        <h5 className="font-black bg-[#003b95] text-white p-2 rounded-xl text-[10px] text-center mb-4 uppercase italic">Grupo {letter}</h5>
                         <div className="space-y-2">
                           {(groupAssignments[letter] as string[]).map((id, idx) => (
-                            <button key={idx} onClick={() => handleAssignTeam(letter, idx)} className={`w-full p-3 rounded-xl text-[10px] font-bold border-2 transition-all ${id ? 'bg-white border-[#003b95] text-[#003b95]' : 'bg-slate-100 border-dashed border-slate-300 text-slate-400 hover:border-blue-300'}`}>
-                              {id ? teams.find(t => t.id.toString() === id)?.name : 'Vaga Disponível'}
+                            <button key={idx} onClick={() => handleAssignTeam(letter, idx)} className={`w-full p-3 rounded-xl text-[10px] font-bold border-2 transition-all ${id ? 'bg-white border-[#003b95] text-[#003b95]' : 'bg-slate-100 border-dashed border-slate-300 text-slate-400'}`}>
+                              {id ? teams.find(t => t.id.toString() === id)?.name : 'Vaga'}
                             </button>
                           ))}
                         </div>
@@ -588,7 +594,7 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setGroupConfigStep('setup')} className="flex-1 py-5 text-slate-400 font-black uppercase text-[10px]">Voltar</button>
-                  <button onClick={handleSaveGroups} className="flex-[2] py-5 bg-[#d90429] text-white rounded-3xl font-black uppercase shadow-xl hover:bg-[#b00322] transition-colors">Gerar Jogos de Grupo</button>
+                  <button onClick={handleSaveGroups} className="flex-[2] py-5 bg-[#d90429] text-white rounded-3xl font-black uppercase shadow-xl hover:bg-[#b00322] transition-colors">Gerar Jogos</button>
                 </div>
               </div>
             )}
@@ -596,38 +602,65 @@ export default function TournamentManager({ competitions, teams, phases, games, 
         </div>
       )}
 
+      {/* Modal de Visualização de Times por Grupo */}
+      {viewGroupDetails && (
+        <div className="fixed inset-0 z-[450] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md">
+           <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl animate-in zoom-in-95 duration-200 relative">
+              <button 
+                onClick={() => setViewGroupDetails(null)} 
+                className="absolute top-6 right-6 text-slate-300 hover:text-slate-600 transition-colors"
+              >
+                <X />
+              </button>
+              <div className="text-center mb-8">
+                <div className="bg-blue-50 w-16 h-16 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 text-[#003b95]">
+                  <Users size={32} />
+                </div>
+                <h4 className="text-2xl font-black uppercase italic text-[#003b95]">{viewGroupDetails.name}</h4>
+                <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest mt-1">Clubes Participantes</p>
+              </div>
+              <div className="space-y-3">
+                {viewGroupDetails.teamIds.map(id => {
+                  const team = teams.find(t => t.id.toString() === id);
+                  return (
+                    <div key={id} className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center border border-slate-100 text-slate-300 shadow-sm">
+                        <Shield size={16} />
+                      </div>
+                      <span className="font-black uppercase text-xs text-slate-700">{team?.name || 'Clube Desconhecido'}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <button 
+                onClick={() => setViewGroupDetails(null)} 
+                className="w-full mt-8 bg-[#003b95] text-white py-4 rounded-2xl font-black uppercase text-[10px] shadow-lg shadow-blue-900/20"
+              >
+                Fechar Visualização
+              </button>
+           </div>
+        </div>
+      )}
+
       {isMataMataCountOpen && (
         <div className="fixed inset-0 z-[350] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="bg-blue-50 p-3 rounded-2xl text-[#003b95]"><Users size={24}/></div>
-              <h4 className="text-xl font-black uppercase italic">Equipes na Fase</h4>
-            </div>
-            
+            <h4 className="text-xl font-black uppercase italic mb-8">Equipes na Fase</h4>
             <div className="space-y-6 text-center">
-              <p className="text-[10px] font-black uppercase text-slate-400 leading-relaxed">
-                Informe a quantidade total de equipes que participarão deste chaveamento.
-              </p>
-              
-              <div className="relative">
-                <input 
-                  type="number" 
-                  step="2"
-                  min="2"
-                  className="w-full p-8 bg-slate-50 rounded-[2rem] font-black text-5xl text-center text-[#003b95] border-2 border-slate-100 focus:border-[#003b95] outline-none" 
-                  value={mataMataCount} 
-                  onChange={e => setMataMataCount(parseInt(e.target.value) || 2)} 
-                />
-              </div>
-
+              <input 
+                type="number" step="2" min="2"
+                className="w-full p-8 bg-slate-50 rounded-[2rem] font-black text-5xl text-center text-[#003b95] border-2 border-slate-100" 
+                value={mataMataCount} 
+                onChange={e => setMataMataCount(parseInt(e.target.value) || 2)} 
+              />
               <div className="flex gap-2 pt-4">
                 <button onClick={() => { setIsMataMataCountOpen(false); setIsPhaseListModalOpen(true); }} className="flex-1 py-5 text-slate-400 font-black uppercase text-[10px]">Voltar</button>
                 <button onClick={() => { 
-                  if (mataMataCount % 2 !== 0) return alert("A quantidade deve ser par.");
+                  if (mataMataCount % 2 !== 0) return alert("Deve ser par.");
                   setMataMataSlots(new Array(mataMataCount).fill(''));
                   setIsMataMataCountOpen(false);
                   setIsMataMataSlotsOpen(true);
-                }} className="flex-[2] py-5 bg-[#003b95] text-white rounded-[2rem] font-black uppercase shadow-xl hover:bg-[#002b6d] transition-colors">Configurar Vagas</button>
+                }} className="flex-[2] py-5 bg-[#003b95] text-white rounded-[2rem] font-black uppercase shadow-xl">Configurar</button>
               </div>
             </div>
           </div>
@@ -638,50 +671,23 @@ export default function TournamentManager({ competitions, teams, phases, games, 
         <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
           <div className="bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl p-10 max-h-[90vh] overflow-y-auto flex flex-col gap-8 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center">
-              <h3 className="text-2xl font-black uppercase italic flex items-center gap-3">
-                <TrophyIcon className="text-[#d90429]" /> Montagem do Chaveamento
-              </h3>
-              <div className="flex items-center gap-2">
-                 <button 
-                   onClick={() => handleApplyMacro('random')}
-                   className="p-3 bg-blue-50 text-[#003b95] rounded-xl hover:bg-blue-100 transition-colors flex items-center gap-2 font-black uppercase text-[8px]"
-                 >
-                   <Dices size={14}/> Sorteio
-                 </button>
-                 <button 
-                   onClick={() => handleApplyMacro('seed')}
-                   className="p-3 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-colors flex items-center gap-2 font-black uppercase text-[8px]"
-                 >
-                   <BarChart3 size={14}/> Ranqueado
-                 </button>
-                 <button 
-                   onClick={() => handleApplyMacro('clear')}
-                   className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 transition-colors flex items-center gap-2 font-black uppercase text-[8px]"
-                 >
-                   <Eraser size={14}/> Limpar
-                 </button>
-                 <div className="w-px h-8 bg-slate-100 mx-2" />
-                 <button onClick={() => setIsMataMataSlotsOpen(false)} className="text-slate-300 hover:text-slate-600"><X/></button>
+              <h3 className="text-2xl font-black uppercase italic">Chaveamento</h3>
+              <div className="flex gap-2">
+                 <button onClick={() => handleApplyMacro('random')} className="p-3 bg-blue-50 text-[#003b95] rounded-xl font-black uppercase text-[8px]">Sorteio</button>
+                 <button onClick={() => handleApplyMacro('seed')} className="p-3 bg-purple-50 text-purple-600 rounded-xl font-black uppercase text-[8px]">Ranqueado</button>
+                 <button onClick={() => handleApplyMacro('clear')} className="p-3 bg-slate-50 text-slate-400 rounded-xl font-black uppercase text-[8px]">Limpar</button>
+                 <button onClick={() => setIsMataMataSlotsOpen(false)} className="text-slate-300 ml-4"><X/></button>
               </div>
             </div>
-
             <div className="bg-slate-50 p-8 rounded-[2.5rem] border-2 border-slate-100">
-              <p className="text-[10px] font-black uppercase text-slate-400 mb-6 flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-[#003b95] rounded-full" /> Times Disponíveis (Liga === "{activeComp?.name}")
-              </p>
               <div className="flex flex-wrap gap-3">
                 {activeCompTeams.map(t => {
                   const isUsed = mataMataSlots.includes(t.id.toString());
                   return (
                     <div 
-                      key={t.id}
-                      draggable={!isUsed}
+                      key={t.id} draggable={!isUsed}
                       onDragStart={(e) => e.dataTransfer.setData('teamId', t.id.toString())}
-                      className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all shadow-sm border-2 ${
-                        isUsed 
-                        ? 'bg-slate-100 text-slate-300 border-transparent cursor-not-allowed grayscale' 
-                        : 'bg-white text-slate-700 border-white hover:border-[#003b95] cursor-grab active:cursor-grabbing hover:scale-105 active:scale-95'
-                      }`}
+                      className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase shadow-sm border-2 ${isUsed ? 'bg-slate-100 text-slate-300 border-transparent grayscale' : 'bg-white text-slate-700 border-white hover:border-[#003b95] cursor-grab'}`}
                     >
                       {t.name}
                     </div>
@@ -689,68 +695,46 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                 })}
               </div>
             </div>
-
-            <div className="space-y-4">
-              <p className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2">
-                <div className="w-1.5 h-1.5 bg-[#d90429] rounded-full" /> Vagas dos Confrontos (Arraste e Solte ou use as Macros)
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {Array.from({ length: mataMataSlots.length / 2 }).map((_, matchIdx) => (
-                  <div key={matchIdx} className="bg-white rounded-[2.5rem] border-2 border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
-                    <div className="bg-slate-50 px-6 py-3 border-b border-slate-100 flex items-center justify-between">
-                      <span className="text-[9px] font-black uppercase text-slate-400 italic">Confronto {matchIdx + 1}</span>
-                      <TrophyIcon size={12} className="text-slate-300" />
-                    </div>
-                    <div className="p-6 space-y-3">
-                      {[0, 1].map(sideIdx => {
-                        const slotIdx = (matchIdx * 2) + sideIdx;
-                        const teamId = mataMataSlots[slotIdx];
-                        const team = teams.find(t => t.id.toString() === teamId);
-                        
-                        return (
-                          <div 
-                            key={slotIdx}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              const teamId = e.dataTransfer.getData('teamId');
-                              const newSlots = [...mataMataSlots];
-                              const existingIndex = newSlots.indexOf(teamId);
-                              if (existingIndex !== -1) newSlots[existingIndex] = '';
-                              newSlots[slotIdx] = teamId;
-                              setMataMataSlots(newSlots);
-                            }}
-                            onDragOver={(e) => e.preventDefault()}
-                            className={`h-14 flex items-center justify-center rounded-2xl border-2 transition-all ${
-                              team ? 'bg-blue-50 border-[#003b95] text-[#003b95]' : 'bg-slate-50 border-dashed border-slate-200 text-slate-300 hover:border-blue-200'
-                            }`}
-                          >
-                            {team ? (
-                              <div className="flex items-center gap-3 px-4 w-full">
-                                <span className="text-[11px] font-black uppercase flex-grow truncate">{team.name}</span>
-                                <button onClick={() => {
-                                  const next = [...mataMataSlots];
-                                  next[slotIdx] = '';
-                                  setMataMataSlots(next);
-                                }} className="text-red-400 hover:text-red-600 transition-colors p-1"><X size={16}/></button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2 opacity-50">
-                                <UserPlus size={16} />
-                                <span className="text-[9px] font-bold uppercase tracking-widest">Solte Equipe</span>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: mataMataSlots.length / 2 }).map((_, matchIdx) => (
+                <div key={matchIdx} className="bg-white rounded-[2.5rem] border-2 border-slate-100 overflow-hidden shadow-sm">
+                  <div className="bg-slate-50 px-6 py-3 border-b border-slate-100"><span className="text-[9px] font-black uppercase text-slate-400 italic">Confronto {matchIdx + 1}</span></div>
+                  <div className="p-6 space-y-3">
+                    {[0, 1].map(sideIdx => {
+                      const slotIdx = (matchIdx * 2) + sideIdx;
+                      const teamId = mataMataSlots[slotIdx];
+                      const team = teams.find(t => t.id.toString() === teamId);
+                      return (
+                        <div 
+                          key={slotIdx}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const teamId = e.dataTransfer.getData('teamId');
+                            const newSlots = [...mataMataSlots];
+                            const existingIndex = newSlots.indexOf(teamId);
+                            if (existingIndex !== -1) newSlots[existingIndex] = '';
+                            newSlots[slotIdx] = teamId;
+                            setMataMataSlots(newSlots);
+                          }}
+                          onDragOver={(e) => e.preventDefault()}
+                          className={`h-14 flex items-center justify-center rounded-2xl border-2 transition-all ${team ? 'bg-blue-50 border-[#003b95] text-[#003b95]' : 'bg-slate-50 border-dashed border-slate-200'}`}
+                        >
+                          {team ? (
+                            <div className="flex items-center gap-3 px-4 w-full">
+                              <span className="text-[11px] font-black uppercase flex-grow truncate">{team.name}</span>
+                              <button onClick={() => { const next = [...mataMataSlots]; next[slotIdx] = ''; setMataMataSlots(next); }} className="text-red-400 hover:text-red-600 transition-colors p-1"><X size={16}/></button>
+                            </div>
+                          ) : <span className="text-[9px] font-bold uppercase opacity-20">Solte Equipe</span>}
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
-
             <div className="flex gap-4 pt-6 border-t border-slate-50">
               <button onClick={() => { setIsMataMataSlotsOpen(false); setIsMataMataCountOpen(true); }} className="flex-1 py-5 text-slate-400 font-black uppercase text-[10px]">Voltar</button>
-              <button onClick={handleSaveMataMata} className="flex-[2] py-5 bg-[#d90429] text-white rounded-[2rem] font-black uppercase shadow-xl hover:bg-[#b00322] transition-colors">Gerar Chaveamento</button>
+              <button onClick={handleSaveMataMata} className="flex-[2] py-5 bg-[#d90429] text-white rounded-[2rem] font-black uppercase shadow-xl">Gerar Chaveamento</button>
             </div>
           </div>
         </div>
