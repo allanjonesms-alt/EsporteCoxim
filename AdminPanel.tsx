@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   Trash2, 
@@ -10,6 +11,7 @@ import {
 import { Competition, Team, Game, Phase } from './types';
 import TournamentManager from './TournamentManager';
 import GameManager from './GameManager';
+import { LOGO_DATA_URL } from './constants';
 import { supabase } from './supabase';
 
 interface AdminPanelProps {
@@ -64,9 +66,14 @@ export default function AdminPanel({ competitions, teams, games, phases, onRefre
   };
 
   return (
-    <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500 relative">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-3xl font-black text-slate-900 uppercase italic font-sport leading-none">Painel Administrativo</h1>
+        <div className="flex items-center gap-4">
+           <div className="bg-white p-2 rounded-2xl shadow-lg border border-slate-100 hidden md:block">
+              <img src={LOGO_DATA_URL} alt="Esporte Coxim" className="w-12 h-12 object-contain" />
+           </div>
+           <h1 className="text-3xl font-black text-slate-900 uppercase italic font-sport leading-none tracking-tight">Painel Administrativo</h1>
+        </div>
         <div className="flex p-1.5 bg-slate-200/50 rounded-2xl shadow-inner border border-slate-200">
           <button onClick={() => setAdminTab('comps')} className={`px-6 py-2 rounded-xl font-black text-[10px] uppercase transition-all flex items-center gap-2 ${adminTab === 'comps' ? 'bg-[#003b95] text-white shadow-lg scale-105' : 'text-slate-500 hover:text-slate-700'}`}>
             <Trophy size={14}/> Torneios
@@ -110,23 +117,23 @@ export default function AdminPanel({ competitions, teams, games, phases, onRefre
                 <input placeholder="Nome do Clube" className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-transparent focus:border-[#003b95] outline-none" value={newTeamData.name} onChange={e => setNewTeamData({...newTeamData, name: e.target.value})} />
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] font-black uppercase text-slate-400 ml-2">Vincular a Liga (Nome)</label>
+                <label className="text-[9px] font-black uppercase text-slate-400 ml-2">Vincular a Liga</label>
                 <select className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-transparent focus:border-[#003b95] outline-none" value={newTeamData.league} onChange={e => setNewTeamData({...newTeamData, league: e.target.value})}>
                   <option value="">Nenhuma</option>
                   {competitions.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
-              <button type="submit" className="w-full bg-[#d90429] text-white py-4 rounded-2xl font-black uppercase text-xs hover:bg-[#b00322] transition-colors">Registrar</button>
+              <button type="submit" className="w-full bg-[#d90429] text-white py-4 rounded-2xl font-black uppercase text-xs hover:bg-[#b00322] transition-colors shadow-lg">Registrar Equipe</button>
             </form>
           </div>
           <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
             {teams.map(t => (
-              <div key={t.id} className="bg-white p-5 rounded-2xl border border-slate-50 flex flex-col gap-3 hover:border-slate-200 transition-colors group">
-                <div className="flex items-center justify-between">
+              <div key={t.id} className="bg-white p-5 rounded-2xl border border-slate-50 flex flex-col gap-3 hover:border-slate-200 transition-colors group relative overflow-hidden">
+                <div className="flex items-center justify-between relative z-10">
                   <span className="font-black text-xs uppercase text-slate-700">{t.name}</span>
                   <button onClick={() => handleDeleteTeam(t.id)} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 relative z-10">
                    <TrophyIcon size={12} className="text-slate-300" />
                    <select 
                       className="flex-1 bg-slate-50 rounded-lg text-[9px] font-bold uppercase p-2 outline-none border-none text-slate-500"
