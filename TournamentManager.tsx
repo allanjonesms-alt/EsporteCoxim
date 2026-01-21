@@ -77,8 +77,44 @@ export default function TournamentManager({ competitions, teams, phases, games, 
   const [selectedTeamForAssignment, setSelectedTeamForAssignment] = useState<string | null>(null);
   const [activePhaseId, setActivePhaseId] = useState<string | null>(null);
 
+  // Move declarations of derived variables above their usage in helper functions and other variables to avoid TDZ errors.
   const activeComp = competitions.find(c => c.id.toString() === editingCompId?.toString());
   const activeCompTeams = teams.filter(t => t.league === activeComp?.name);
+  const activeCompPhases = phases.filter(p => p.competitions_id.toString() === editingCompId?.toString());
+
+  // Filtro de vencedores para progressão automática
+  const [progressionWinners, setProgressionWinners] = useState<string[] | null>(null);
+
+  // Lógica de Sequência de Mata-Mata
+  const knockoutSequenceMap: Record<string, string> = {
+    "OITAVAS DE FINAIS": "QUARTAS DE FINAIS",
+    "QUARTAS DE FINAIS": "SEMI-FINAIS",
+    "SEMI-FINAIS": "FINAL"
+  };
+
+  const getLastKnockoutPhase = () => {
+    return [...activeCompPhases]
+      .filter(p => p.type === 'Mata-Mata')
+      .sort((a, b) => String(b.id).localeCompare(String(a.id)))[0];
+  };
+
+  const getWinnersOfPhase = (phaseId: string) => {
+    const phaseGames = games.filter(g => 
+      g.phase_id?.toString() === phaseId.toString() && 
+      g.status === GameStatus.ENCERRADO
+    );
+    
+    return phaseGames.map(g => {
+      if (g.home_score > g.away_score) return g.home_team_id.toString();
+      if (g.away_score > g.home_score) return g.away_team_id.toString();
+      // Em caso de empate (teoricamente não ocorre em mata-mata sem decisão), ignoramos
+      return null;
+    }).filter(id => id !== null) as string[];
+  };
+
+  const lastKnockout = getLastKnockoutPhase();
+  const nextKnockoutName = lastKnockout ? knockoutSequenceMap[lastKnockout.name] : null;
+  const currentWinners = lastKnockout ? getWinnersOfPhase(lastKnockout.id.toString()) : [];
 
   const getDetectedGroups = (phaseId: string) => {
     const phaseGames = games.filter(g => g.phase_id?.toString() === phaseId.toString());
@@ -129,18 +165,23 @@ export default function TournamentManager({ competitions, teams, phases, games, 
       setMataMataSlots(new Array(mataMataCount).fill(''));
       return;
     }
-    const availableIds = activeCompTeams.map(t => t.id.toString());
+    
+    // Se estiver em progressão, os times disponíveis são apenas os vencedores
+    const teamsPool = progressionWinners || activeCompTeams.map(t => t.id.toString());
+    
     if (type === 'random') {
-      const shuffled = shuffleArray(availableIds).slice(0, mataMataCount);
+      const shuffled = shuffleArray(teamsPool).slice(0, mataMataCount);
       const nextSlots = new Array(mataMataCount).fill('');
       shuffled.forEach((id, i) => nextSlots[i] = id);
       setMataMataSlots(nextSlots);
     } 
     else if (type === 'seed') {
-      const rankedIds = getTeamRanking(activeCompTeams, games.filter(g => g.competition_id.toString() === editingCompId));
+      const filteredTeams = activeCompTeams.filter(t => teamsPool.includes(t.id.toString()));
+      const rankedIds = getTeamRanking(filteredTeams, games.filter(g => g.competition_id.toString() === editingCompId));
       const topTeams = rankedIds.slice(0, mataMataCount);
+      
       if (topTeams.length < mataMataCount) {
-        alert("Não há times suficientes classificados para este tamanho de chaveamento.");
+        alert(`Não há times suficientes (${topTeams.length}) para preencher ${mataMataCount} vagas.`);
         return;
       }
       setMataMataSlots(generateSeededSlots(topTeams));
@@ -186,9 +227,17 @@ export default function TournamentManager({ competitions, teams, phases, games, 
       });
       if (error) throw error;
       setIsPhaseModalOpen(false);
+      
+      // Se for uma fase criada via progressão automática, já iniciamos a config dela
+      if (progressionWinners) {
+        setActivePhaseId(manualId);
+        setMataMataCount(progressionWinners.length);
+        setIsMataMataSlotsOpen(true);
+      }
+
       setNewPhaseData({ name: '', type: 'Fase de Grupos' });
       await onRefresh();
-      alert(`Fase "${newPhaseData.name.toUpperCase()}" criada com sucesso.`);
+      if (!progressionWinners) alert(`Fase "${newPhaseData.name.toUpperCase()}" criada com sucesso.`);
     } catch (err: any) { alert("Erro ao criar fase: " + err.message); } 
     finally { setSyncing(false); }
   };
@@ -212,6 +261,7 @@ export default function TournamentManager({ competitions, teams, phases, games, 
     } else if (type === 'edit' && phaseId) {
       const selectedPhase = phases.find(p => p.id.toString() === phaseId);
       setActivePhaseId(phaseId);
+      setProgressionWinners(null); // Resetamos o filtro ao editar manualmente
       if (selectedPhase?.type === 'Mata-Mata') {
         setIsPhaseListModalOpen(false);
         setIsMataMataCountOpen(true);
@@ -230,6 +280,7 @@ export default function TournamentManager({ competitions, teams, phases, games, 
       setPendingPhase(p);
       setShowReconfigWarning(true);
     } else {
+      setProgressionWinners(null);
       proceedToPhaseConfig(p);
     }
   };
@@ -272,13 +323,12 @@ export default function TournamentManager({ competitions, teams, phases, games, 
       }
       setIsMataMataSlotsOpen(false);
       setActivePhaseId(null);
+      setProgressionWinners(null);
       await onRefresh();
       alert("Chaveamento de mata-mata gerado com sucesso!");
     } catch (err: any) { alert(err.message); } 
     finally { setSyncing(false); }
   };
-
-  const activeCompPhases = phases.filter(p => p.competitions_id.toString() === editingCompId?.toString());
 
   const handleGenerateGroupStructure = () => {
     const numParticipants = activeCompTeams.length;
@@ -332,6 +382,11 @@ export default function TournamentManager({ competitions, teams, phases, games, 
     finally { setSyncing(false); }
   };
 
+  // Filtragem de times com base na progressão
+  const visibleTeams = progressionWinners 
+    ? activeCompTeams.filter(t => progressionWinners.includes(t.id.toString()))
+    : activeCompTeams;
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -339,6 +394,7 @@ export default function TournamentManager({ competitions, teams, phases, games, 
         <button 
           onClick={() => { 
             setEditingCompId(null); 
+            setProgressionWinners(null);
             setNewCompData({ name: '', date: '', status: CompStatus.AGENDADA, phase: 'Fase de Grupos' });
             setIsCompModalOpen(true); 
           }} 
@@ -354,6 +410,7 @@ export default function TournamentManager({ competitions, teams, phases, games, 
             key={c.id} 
             onClick={() => { 
               setEditingCompId(c.id.toString()); 
+              setProgressionWinners(null);
               setNewCompData({
                 name: c.name, 
                 date: c.date || '', 
@@ -424,7 +481,10 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                   <button 
                     onClick={() => {
                       if(!editingCompId) alert("Salve o torneio primeiro.");
-                      else setIsPhaseModalOpen(true);
+                      else {
+                        setProgressionWinners(null);
+                        setIsPhaseModalOpen(true);
+                      }
                     }} 
                     className={`p-4 rounded-2xl font-black uppercase text-[9px] flex items-center justify-center gap-2 transition-all ${editingCompId ? 'bg-white shadow-sm hover:bg-slate-100' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
                   >
@@ -454,13 +514,44 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                 <div className="bg-blue-50 p-2 rounded-xl text-[#003b95]"><Layers size={20}/></div>
                 <h4 className="text-xl font-black uppercase italic">Nova Fase</h4>
               </div>
+
+              {/* Botão de Próxima Fase do Mata-Mata */}
+              {nextKnockoutName && (
+                <button
+                  onClick={() => {
+                    if (currentWinners.length === 0) {
+                      alert("Atenção: Não foram encontrados vencedores com jogos encerrados na fase anterior. Encerrre os jogos das " + lastKnockout.name + " para habilitar a progressão automática.");
+                      return;
+                    }
+                    setProgressionWinners(currentWinners);
+                    setNewPhaseData({ name: nextKnockoutName, type: 'Mata-Mata' });
+                  }}
+                  className="w-full mb-6 p-4 bg-orange-50 border-2 border-orange-200 rounded-2xl flex items-center justify-between group hover:bg-orange-100 transition-all shadow-sm"
+                >
+                  <div className="flex items-center gap-3 text-left">
+                    <div className="bg-orange-500 text-white p-2 rounded-xl">
+                      <Swords size={18} />
+                    </div>
+                    <div>
+                      <p className="text-[8px] font-black uppercase text-orange-600 tracking-widest">Sequência Automática</p>
+                      <p className="text-xs font-black uppercase text-slate-800">Próxima Fase: {nextKnockoutName}</p>
+                      <p className="text-[7px] font-bold text-slate-400 mt-1 uppercase italic">{currentWinners.length} vencedores encontrados</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="text-orange-400 group-hover:translate-x-1 transition-transform" size={20} />
+                </button>
+              )}
+
               <div className="space-y-5">
                  <div className="space-y-1">
                    <label className="text-[9px] font-black uppercase text-slate-400 ml-2">Tipo da Fase</label>
                    <select 
                       className="w-full p-4 bg-slate-50 rounded-xl font-bold outline-none border-2 border-transparent focus:border-[#003b95]" 
                       value={newPhaseData.type} 
-                      onChange={e => setNewPhaseData({...newPhaseData, type: e.target.value as any, name: ''})}
+                      onChange={e => {
+                        setProgressionWinners(null); // Resetamos filtro se mudar tipo manualmente
+                        setNewPhaseData({...newPhaseData, type: e.target.value as any, name: ''});
+                      }}
                    >
                       <option value="Fase de Grupos">Fase de Grupos</option>
                       <option value="Mata-Mata">Mata-Mata</option>
@@ -474,7 +565,10 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                          <button
                            key={opt}
                            type="button"
-                           onClick={() => setNewPhaseData({...newPhaseData, name: opt})}
+                           onClick={() => {
+                            setProgressionWinners(null);
+                            setNewPhaseData({...newPhaseData, name: opt});
+                           }}
                            className={`p-3 rounded-xl text-[9px] font-black uppercase transition-all border-2 ${newPhaseData.name === opt ? 'bg-[#003b95] text-white border-[#003b95]' : 'bg-slate-50 border-transparent text-slate-600 hover:border-slate-200'}`}
                          >
                            {opt}
@@ -491,7 +585,7 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                    )}
                  </div>
                  <div className="flex gap-2 pt-4">
-                    <button onClick={() => { setIsPhaseModalOpen(false); setNewPhaseData({name: '', type: 'Fase de Grupos'}); }} className="flex-1 py-4 font-black uppercase text-[10px] text-slate-400 hover:text-slate-600">Cancelar</button>
+                    <button onClick={() => { setIsPhaseModalOpen(false); setProgressionWinners(null); setNewPhaseData({name: '', type: 'Fase de Grupos'}); }} className="flex-1 py-4 font-black uppercase text-[10px] text-slate-400 hover:text-slate-600">Cancelar</button>
                     <button onClick={handleSavePhase} className="flex-[2] bg-[#003b95] text-white py-4 rounded-xl font-black uppercase text-[10px] shadow-lg shadow-blue-900/10 hover:bg-[#002b6d]">Registrar Fase</button>
                  </div>
               </div>
@@ -504,7 +598,7 @@ export default function TournamentManager({ competitions, teams, phases, games, 
           <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl p-10 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black uppercase italic">Configuração de Fases</h3>
-              <button onClick={() => { setIsPhaseListModalOpen(false); setActivePhaseId(null); }} className="text-slate-300 hover:text-slate-600"><X/></button>
+              <button onClick={() => { setIsPhaseListModalOpen(false); setActivePhaseId(null); setProgressionWinners(null); }} className="text-slate-300 hover:text-slate-600"><X/></button>
             </div>
             
             {groupConfigStep === 'list' && (
@@ -817,17 +911,22 @@ export default function TournamentManager({ competitions, teams, phases, games, 
         <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
           <div className="bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl p-10 max-h-[90vh] overflow-y-auto flex flex-col gap-8 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center">
-              <h3 className="text-2xl font-black uppercase italic">Chaveamento</h3>
+              <div className="flex flex-col gap-1">
+                <h3 className="text-2xl font-black uppercase italic">Chaveamento</h3>
+                {progressionWinners && (
+                  <span className="text-[8px] font-black text-orange-500 uppercase italic bg-orange-50 px-3 py-1 rounded-full w-fit">Progressão: Apenas Vencedores Disponíveis</span>
+                )}
+              </div>
               <div className="flex gap-2">
                  <button onClick={() => handleApplyMacro('random')} className="p-3 bg-blue-50 text-[#003b95] rounded-xl font-black uppercase text-[8px]">Sorteio</button>
                  <button onClick={() => handleApplyMacro('seed')} className="p-3 bg-purple-50 text-purple-600 rounded-xl font-black uppercase text-[8px]">Ranqueado</button>
                  <button onClick={() => handleApplyMacro('clear')} className="p-3 bg-slate-50 text-slate-400 rounded-xl font-black uppercase text-[8px]">Limpar</button>
-                 <button onClick={() => setIsMataMataSlotsOpen(false)} className="text-slate-300 ml-4"><X/></button>
+                 <button onClick={() => { setIsMataMataSlotsOpen(false); setProgressionWinners(null); }} className="text-slate-300 ml-4"><X/></button>
               </div>
             </div>
             <div className="bg-slate-50 p-8 rounded-[2.5rem] border-2 border-slate-100">
               <div className="flex flex-wrap gap-3">
-                {activeCompTeams.map(t => {
+                {visibleTeams.map(t => {
                   const isUsed = mataMataSlots.includes(t.id.toString());
                   return (
                     <div 
