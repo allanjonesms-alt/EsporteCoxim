@@ -10,7 +10,10 @@ import {
   LogOut,
   CheckCircle2,
   Gamepad2,
-  Users
+  Users,
+  Clock,
+  Swords,
+  Layers
 } from 'lucide-react';
 import { Competition, Team, Game, CompStatus, GameStatus, Phase } from './types';
 import { DEFAULT_ADMIN, LOGO_DATA_URL } from './constants';
@@ -156,6 +159,53 @@ export default function App() {
     return finalGroups;
   }, [activeComp, games, teams, phases]);
 
+  // Hierarquia de Jogos (Mesma do GameManager.tsx)
+  const structuredGames = useMemo(() => {
+    if (!activeComp) return [];
+    const compGames = games.filter(g => g.competition_id.toString() === selectedCompId);
+    const compPhases = phases.filter(p => p.competitions_id.toString() === selectedCompId);
+    
+    const statusPriorityMap = {
+      [GameStatus.AO_VIVO]: 1,
+      [GameStatus.AGENDADO]: 2,
+      [GameStatus.ENCERRADO]: 3
+    };
+
+    const sortGamesByStatus = (list: Game[]) => {
+      return [...list].sort((a, b) => {
+        const pA = statusPriorityMap[a.status] || 99;
+        const pB = statusPriorityMap[b.status] || 99;
+        if (pA !== pB) return pA - pB;
+        const dateA = new Date(`${a.game_date}T${a.game_time || '00:00'}`).getTime();
+        const dateB = new Date(`${b.game_date}T${b.game_time || '00:00'}`).getTime();
+        return dateA - dateB;
+      });
+    };
+
+    const ghostGames = sortGamesByStatus(compGames.filter(g => !g.phase_id));
+
+    return [
+      ...compPhases.map(phase => {
+        const phaseGames = compGames.filter(g => g.phase_id?.toString() === phase.id.toString());
+        if (phase.type === 'Fase de Grupos') {
+          const detectedGroups = detectGroupsInPhase(phase.id.toString(), phaseGames);
+          return {
+            ...phase,
+            groups: detectedGroups.map(group => ({
+              ...group,
+              games: sortGamesByStatus(phaseGames.filter(g => 
+                group.teamIds.includes(g.home_team_id.toString()) && 
+                group.teamIds.includes(g.away_team_id.toString())
+              ))
+            }))
+          };
+        }
+        return { ...phase, games: sortGamesByStatus(phaseGames), groups: [] };
+      }),
+      ...(ghostGames.length > 0 ? [{ id: 'none', name: 'Geral', type: 'Geral', games: ghostGames, groups: [] }] : [])
+    ];
+  }, [games, phases, selectedCompId, activeComp]);
+
   function calculateStandings(filteredGames: Game[], specificTeamIds?: string[]) {
     const stats: Record<string, any> = {};
     const teamIds = specificTeamIds || Array.from(new Set(filteredGames.flatMap(g => [g.home_team_id.toString(), g.away_team_id.toString()])));
@@ -180,14 +230,53 @@ export default function App() {
       .sort((a, b) => b.pts - a.pts || b.v - a.v || b.sg - a.sg || b.gf - a.gf);
   }
 
-  const sortGames = (gamesList: Game[]) => {
-    const priority = { [GameStatus.AO_VIVO]: 1, [GameStatus.AGENDADO]: 2, [GameStatus.ENCERRADO]: 3 };
-    return [...gamesList].sort((a, b) => {
-      const pA = priority[a.status] || 99;
-      const pB = priority[b.status] || 99;
-      if (pA !== pB) return pA - pB;
-      return new Date(a.game_date || 0).getTime() - new Date(b.game_date || 0).getTime();
-    });
+  const renderGameCard = (g: Game) => {
+    const homeTeam = teams.find(t => t.id.toString() === g.home_team_id.toString());
+    const awayTeam = teams.find(t => t.id.toString() === g.away_team_id.toString());
+    const isLive = g.status === GameStatus.AO_VIVO;
+
+    const scoreBaseClasses = "w-10 h-10 flex items-center justify-center font-black text-xl rounded-lg shadow-sm transition-all duration-300";
+    const liveScoreClasses = `${scoreBaseClasses} bg-red-50 border-2 border-red-500 text-red-600 animate-pulse ring-4 ring-red-500/10`;
+    const staticScoreClasses = `${scoreBaseClasses} bg-slate-100 text-slate-400 border border-slate-200`;
+    const endedScoreClasses = `${scoreBaseClasses} bg-white border-2 border-slate-800 text-slate-800`;
+
+    return (
+      <div key={g.id} className="bg-white p-6 rounded-[2.5rem] shadow-lg border border-slate-50 hover:shadow-2xl transition-all flex flex-col gap-4 border-l-8 border-l-[#003b95]">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-red-500 animate-pulse' : 'bg-slate-300'}`}></span>
+            <span className={`text-[10px] font-black uppercase tracking-widest ${isLive ? 'text-red-500' : 'text-slate-400'}`}>{g.status}</span>
+          </div>
+          {isLive && <span className="text-[8px] font-black text-red-500 uppercase italic animate-pulse">Acompanhando Agora</span>}
+        </div>
+
+        <div className="space-y-3">
+          <div className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${isLive ? 'bg-red-50/20 border-red-100 ring-2 ring-red-500/5' : 'bg-slate-50 border-slate-100'}`}>
+            <span className={`text-xs font-black uppercase truncate flex-1 ${isLive ? 'text-red-900' : 'text-slate-700'}`}>{homeTeam?.name || '---'}</span>
+            <div className={isLive ? liveScoreClasses : (g.status === GameStatus.ENCERRADO ? endedScoreClasses : staticScoreClasses)}>
+              {g.home_score}
+            </div>
+          </div>
+          <div className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${isLive ? 'bg-red-50/20 border-red-100 ring-2 ring-red-500/5' : 'bg-slate-50 border-slate-100'}`}>
+            <span className={`text-xs font-black uppercase truncate flex-1 ${isLive ? 'text-red-900' : 'text-slate-700'}`}>{awayTeam?.name || '---'}</span>
+            <div className={isLive ? liveScoreClasses : (g.status === GameStatus.ENCERRADO ? endedScoreClasses : staticScoreClasses)}>
+              {g.away_score}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center pt-2 border-t border-slate-50">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase">
+              <Calendar size={12} className="text-[#003b95]" /> {g.game_date ? new Date(g.game_date).toLocaleDateString('pt-BR') : '--/--'}
+            </div>
+            <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase">
+              <Clock size={12} className="text-[#d90429]" /> {g.game_time || '--:--'}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -315,35 +404,45 @@ export default function App() {
             )}
 
             {activeTab === 'jogos' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in slide-in-from-bottom-4 duration-500 pb-20">
-                {sortGames(games.filter(g => g.competition_id.toString() === selectedCompId)).map(g => {
-                  const homeTeam = teams.find(t => t.id.toString() === g.home_team_id.toString());
-                  const awayTeam = teams.find(t => t.id.toString() === g.away_team_id.toString());
-                  const phase = phases.find(p => p.id.toString() === g.phase_id?.toString());
-                  const isLive = g.status === GameStatus.AO_VIVO;
-                  return (
-                    <div key={g.id} className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-50 hover:shadow-2xl transition-all flex flex-col gap-5 border-l-8 border-l-[#003b95]">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[9px] font-black uppercase italic tracking-widest text-[#003b95] bg-blue-50 px-3 py-1 rounded-full">{phase?.name || 'Partida'}</span>
-                        <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-full ${isLive ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 text-slate-400'}`}>{g.status}</span>
+              <div className="space-y-12 pb-24">
+                {structuredGames.map((phase: any, pIdx) => (
+                  <div key={phase.id} className="space-y-6 animate-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: `${pIdx * 100}ms` }}>
+                    <div className="bg-[#003b95] text-white px-8 py-4 rounded-[2rem] flex items-center justify-between shadow-xl border-b-4 border-[#d90429]">
+                      <div className="flex items-center gap-4">
+                        <Layers size={20} className="text-blue-300" />
+                        <h4 className="font-black uppercase italic tracking-widest">{phase.name}</h4>
                       </div>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between gap-6">
-                          <span className="text-sm font-black uppercase text-slate-800 truncate flex-1">{homeTeam?.name || '---'}</span>
-                          <span className={`text-3xl font-black italic min-w-[40px] text-right ${isLive ? 'text-[#d90429]' : 'text-slate-900'}`}>{g.home_score}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-6">
-                          <span className="text-sm font-black uppercase text-slate-800 truncate flex-1">{awayTeam?.name || '---'}</span>
-                          <span className={`text-3xl font-black italic min-w-[40px] text-right ${isLive ? 'text-[#d90429]' : 'text-slate-900'}`}>{g.away_score}</span>
-                        </div>
-                      </div>
-                      <div className="pt-4 border-t border-slate-100 flex justify-between items-center text-slate-400">
-                         <div className="flex items-center gap-2"><Calendar size={14} className="text-[#003b95]" /><span className="text-[10px] font-bold uppercase">{g.game_date ? new Date(g.game_date).toLocaleDateString('pt-BR') : '--'}</span></div>
-                         <div className="flex items-center gap-2"><Activity size={14} className="text-[#d90429]" /><span className="text-[10px] font-bold uppercase">{g.game_time || '--:--'}</span></div>
-                      </div>
+                      <span className="text-[10px] font-bold bg-white/10 px-4 py-1 rounded-full uppercase">{phase.type}</span>
                     </div>
-                  );
-                })}
+
+                    {phase.groups && phase.groups.length > 0 ? (
+                      <div className="space-y-10">
+                        {phase.groups.map((group: any) => (
+                          <div key={group.name} className="space-y-4">
+                            <div className="flex items-center gap-3 ml-4">
+                              <Users size={16} className="text-[#003b95]" />
+                              <h5 className="font-black text-[#003b95] uppercase italic tracking-wider">{group.name}</h5>
+                              <div className="h-[2px] bg-slate-100 flex-1 rounded-full"></div>
+                            </div>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {group.games.map((g: Game) => renderGameCard(g))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {(phase.games || []).map((g: Game) => renderGameCard(g))}
+                      </div>
+                    )}
+                    
+                    {(!phase.games || phase.games.length === 0) && (!phase.groups || phase.groups.length === 0) && (
+                      <div className="text-center py-10 bg-white rounded-[2.5rem] border border-dashed border-slate-200">
+                        <p className="text-[10px] font-black uppercase text-slate-300">Aguardando definição de partidas</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
