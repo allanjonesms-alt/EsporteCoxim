@@ -363,36 +363,36 @@ export default function App() {
             {activeTab === 'classificacao' && (
               <div className="space-y-12 pb-24">
                 {groupedStandings.map((group, gIdx) => (
-                  <div key={group.id} className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden animate-in slide-in-from-bottom-6 duration-500" style={{ animationDelay: `${gIdx * 100}ms` }}>
-                    <div className="bg-[#003b95] px-10 py-6 flex items-center justify-between border-b-4 border-[#d90429]">
-                       <div className="flex items-center gap-4">
-                          <div className="bg-white/10 p-2 rounded-xl text-white shadow-inner"><TrophyIcon size={20} /></div>
-                          <h3 className="font-black italic uppercase text-white text-lg tracking-wide leading-none">{group.displayName}</h3>
+                  <div key={group.id} className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden animate-in slide-in-from-bottom-6 duration-500" style={{ animationDelay: `${gIdx * 100}ms` }}>
+                    <div className="bg-[#003b95] px-6 py-4 flex items-center justify-between border-b-4 border-[#d90429]">
+                       <div className="flex items-center gap-3">
+                          <div className="bg-white/10 p-2 rounded-xl text-white shadow-inner"><TrophyIcon size={18} /></div>
+                          <h3 className="font-black italic uppercase text-white text-base tracking-wide leading-none">{group.displayName}</h3>
                        </div>
                     </div>
                     <div className="overflow-x-auto no-scrollbar">
                       <table className="w-full text-left text-xs">
                         <thead className="bg-slate-50 text-slate-400 font-black uppercase border-b border-slate-100">
                           <tr>
-                            <th className="px-6 md:px-10 py-5 w-20 text-center">#</th>
-                            <th className="px-4 py-5">Time</th>
-                            <th className="px-4 py-5 text-center bg-[#003b95]/5 text-[#003b95]">P</th>
-                            <th className="px-4 py-5 text-center">J</th>
-                            <th className="px-4 py-5 text-center">V</th>
-                            <th className="px-4 py-5 text-center">SG</th>
+                            <th className="px-4 py-3 w-16 text-center">#</th>
+                            <th className="px-3 py-3">Time</th>
+                            <th className="px-3 py-3 text-center bg-[#003b95]/5 text-[#003b95]">P</th>
+                            <th className="px-3 py-3 text-center">J</th>
+                            <th className="px-3 py-3 text-center">V</th>
+                            <th className="px-3 py-3 text-center">SG</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                           {group.standings.map((team, idx) => (
                             <tr key={team.id} className="hover:bg-blue-50/40 transition-colors group/row">
-                              <td className="px-6 md:px-10 py-6 text-center">
-                                <span className={`inline-block w-8 h-8 leading-8 rounded-lg font-black text-sm ${idx < 4 ? 'bg-[#003b95] text-white' : 'bg-slate-100 text-slate-400'}`}>{idx + 1}</span>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`inline-block w-7 h-7 leading-7 rounded-lg font-black text-[12px] ${idx < 4 ? 'bg-[#003b95] text-white' : 'bg-slate-100 text-slate-400'}`}>{idx + 1}</span>
                               </td>
-                              <td className="px-4 py-6 font-black text-slate-800 uppercase text-[13px] group-hover/row:text-[#d90429] transition-colors">{team.name}</td>
-                              <td className="px-4 py-6 text-center bg-[#003b95]/5 font-black text-base text-[#003b95]">{team.pts}</td>
-                              <td className="px-4 py-6 text-center font-bold text-slate-500">{team.pj}</td>
-                              <td className="px-4 py-6 text-center font-bold text-slate-500">{team.v}</td>
-                              <td className={`px-4 py-6 text-center font-black text-[13px] ${team.sg > 0 ? 'text-green-500' : team.sg < 0 ? 'text-red-500' : 'text-slate-400'}`}>{team.sg}</td>
+                              <td className="px-3 py-3 font-black text-slate-800 uppercase text-[12px] group-hover/row:text-[#d90429] transition-colors">{team.name}</td>
+                              <td className="px-3 py-3 text-center bg-[#003b95]/5 font-black text-[14px] text-[#003b95]">{team.pts}</td>
+                              <td className="px-3 py-3 text-center font-bold text-slate-500">{team.pj}</td>
+                              <td className="px-3 py-3 text-center font-bold text-slate-500">{team.v}</td>
+                              <td className={`px-3 py-3 text-center font-black text-[12px] ${team.sg > 0 ? 'text-green-500' : team.sg < 0 ? 'text-red-500' : 'text-slate-400'}`}>{team.sg}</td>
                             </tr>
                           ))}
                         </tbody>
