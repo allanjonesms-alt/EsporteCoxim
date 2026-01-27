@@ -293,6 +293,9 @@ export default function GameManager({ competitions, teams, games, phases, onRefr
     const homeTeam = teams.find(t => t.id.toString() === g.home_team_id.toString());
     const awayTeam = teams.find(t => t.id.toString() === g.away_team_id.toString());
     const isLive = g.status === GameStatus.AO_VIVO;
+    const isFinished = g.status === GameStatus.ENCERRADO;
+    const homeWinner = isFinished && g.home_score > g.away_score;
+    const awayWinner = isFinished && g.away_score > g.home_score;
 
     // Configurações de estilo para placares Live
     const scoreBaseClasses = "w-10 h-10 text-center font-black text-xl rounded-lg outline-none transition-all duration-300";
@@ -324,7 +327,11 @@ export default function GameManager({ competitions, teams, games, phases, onRefr
 
         <div className="space-y-3">
           {/* Time Casa */}
-          <div className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${isLive ? 'bg-red-50/20 border-red-100 ring-2 ring-red-500/5' : 'bg-slate-50 border-slate-100 opacity-90'}`}>
+          <div className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+            homeWinner ? 'bg-green-500/20 border-green-200' :
+            isLive ? 'bg-red-50/20 border-red-100 ring-2 ring-red-500/5' : 
+            'bg-slate-50 border-slate-100 opacity-90'
+          }`}>
             <span className={`text-xs font-black uppercase truncate flex-1 ${isLive ? 'text-red-900' : 'text-slate-700'}`}>{homeTeam?.name || '---'}</span>
             <div className="flex items-center gap-2">
               <button disabled={!isLive} onClick={() => handleScoreChange(g, 'home', -1)} className={`p-1 rounded-md ${isLive ? 'bg-white text-slate-400 hover:text-red-500 shadow-sm' : 'text-slate-200 cursor-not-allowed'}`}><Minus size={12}/></button>
@@ -341,7 +348,11 @@ export default function GameManager({ competitions, teams, games, phases, onRefr
             </div>
           </div>
           {/* Time Visitante */}
-          <div className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${isLive ? 'bg-red-50/20 border-red-100 ring-2 ring-red-500/5' : 'bg-slate-50 border-slate-100 opacity-90'}`}>
+          <div className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+            awayWinner ? 'bg-green-500/20 border-green-200' :
+            isLive ? 'bg-red-50/20 border-red-100 ring-2 ring-red-500/5' : 
+            'bg-slate-50 border-slate-100 opacity-90'
+          }`}>
             <span className={`text-xs font-black uppercase truncate flex-1 ${isLive ? 'text-red-900' : 'text-slate-700'}`}>{awayTeam?.name || '---'}</span>
             <div className="flex items-center gap-2">
               <button disabled={!isLive} onClick={() => handleScoreChange(g, 'away', -1)} className={`p-1 rounded-md ${isLive ? 'bg-white text-slate-400 hover:text-red-500 shadow-sm' : 'text-slate-200 cursor-not-allowed'}`}><Minus size={12}/></button>

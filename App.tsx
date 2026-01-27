@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Trophy, 
@@ -234,6 +233,9 @@ export default function App() {
     const homeTeam = teams.find(t => t.id.toString() === g.home_team_id.toString());
     const awayTeam = teams.find(t => t.id.toString() === g.away_team_id.toString());
     const isLive = g.status === GameStatus.AO_VIVO;
+    const isFinished = g.status === GameStatus.ENCERRADO;
+    const homeWinner = isFinished && g.home_score > g.away_score;
+    const awayWinner = isFinished && g.away_score > g.home_score;
 
     const scoreBaseClasses = "w-10 h-10 flex items-center justify-center font-black text-xl rounded-lg shadow-sm transition-all duration-300";
     const liveScoreClasses = `${scoreBaseClasses} bg-red-50 border-2 border-red-500 text-red-600 animate-pulse ring-4 ring-red-500/10`;
@@ -251,13 +253,21 @@ export default function App() {
         </div>
 
         <div className="space-y-3">
-          <div className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${isLive ? 'bg-red-50/20 border-red-100 ring-2 ring-red-500/5' : 'bg-slate-50 border-slate-100'}`}>
+          <div className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+            homeWinner ? 'bg-green-500/20 border-green-200' : 
+            isLive ? 'bg-red-50/20 border-red-100 ring-2 ring-red-500/5' : 
+            'bg-slate-50 border-slate-100'
+          }`}>
             <span className={`text-xs font-black uppercase truncate flex-1 ${isLive ? 'text-red-900' : 'text-slate-700'}`}>{homeTeam?.name || '---'}</span>
             <div className={isLive ? liveScoreClasses : (g.status === GameStatus.ENCERRADO ? endedScoreClasses : staticScoreClasses)}>
               {g.home_score}
             </div>
           </div>
-          <div className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${isLive ? 'bg-red-50/20 border-red-100 ring-2 ring-red-500/5' : 'bg-slate-50 border-slate-100'}`}>
+          <div className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+            awayWinner ? 'bg-green-500/20 border-green-200' : 
+            isLive ? 'bg-red-50/20 border-red-100 ring-2 ring-red-500/5' : 
+            'bg-slate-50 border-slate-100'
+          }`}>
             <span className={`text-xs font-black uppercase truncate flex-1 ${isLive ? 'text-red-900' : 'text-slate-700'}`}>{awayTeam?.name || '---'}</span>
             <div className={isLive ? liveScoreClasses : (g.status === GameStatus.ENCERRADO ? endedScoreClasses : staticScoreClasses)}>
               {g.away_score}
