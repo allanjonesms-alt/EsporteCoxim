@@ -150,7 +150,6 @@ export default function App() {
     return finalGroups;
   }, [activeComp, games, teams, phases]);
 
-  // Identifica se a competição está exclusivamente em mata-mata ou qual o mata-mata atual
   const knockoutPhases = useMemo(() => {
     if (!activeComp) return [];
     return phases
@@ -240,51 +239,47 @@ export default function App() {
     const homeWinner = isFinished && g.home_score > g.away_score;
     const awayWinner = isFinished && g.away_score > g.home_score;
 
-    const scoreBaseClasses = "w-10 h-10 flex items-center justify-center font-black text-xl rounded-lg shadow-sm transition-all duration-300";
+    const scoreBaseClasses = "w-8 h-8 flex items-center justify-center font-black text-lg rounded-lg shadow-sm transition-all duration-300";
     const liveScoreClasses = `${scoreBaseClasses} bg-red-50 border-2 border-red-500 text-red-600 animate-pulse ring-4 ring-red-500/10`;
     const staticScoreClasses = `${scoreBaseClasses} bg-slate-100 text-slate-400 border border-slate-200`;
     const endedScoreClasses = `${scoreBaseClasses} bg-white border-2 border-slate-800 text-slate-800`;
 
     return (
-      <div key={g.id} className="bg-white p-6 rounded-[2.5rem] shadow-lg border border-slate-50 hover:shadow-2xl transition-all flex flex-col gap-4 border-l-8 border-l-[#003b95]">
+      <div key={g.id} className="bg-white p-3 rounded-[1.5rem] shadow shadow-[#003b95]/5 border border-slate-50 hover:shadow-lg transition-all flex flex-col gap-2 border-l-4 border-l-[#003b95]">
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-red-500 animate-pulse' : 'bg-slate-300'}`}></span>
-            <span className={`text-[10px] font-black uppercase tracking-widest ${isLive ? 'text-red-500' : 'text-slate-400'}`}>{g.status}</span>
+          <div className="flex items-center gap-1.5">
+            <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-red-500 animate-pulse' : 'bg-slate-300'}`}></span>
+            <span className={`text-[8px] font-black uppercase tracking-widest ${isLive ? 'text-red-500' : 'text-slate-400'}`}>{g.status}</span>
           </div>
-          {isLive && <span className="text-[8px] font-black text-red-500 uppercase italic animate-pulse">Acompanhando Agora</span>}
         </div>
 
-        <div className="space-y-3">
-          <div className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
-            homeWinner ? 'bg-green-500/20 border-green-200' : 
-            isLive ? 'bg-red-50/20 border-red-100 ring-2 ring-red-500/5' : 
+        <div className="space-y-1.5">
+          <div className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
+            homeWinner ? 'bg-green-500/10 border-green-100' : 
+            isLive ? 'bg-red-50/10 border-red-100 ring-1 ring-red-500/5' : 
             'bg-slate-50 border-slate-100'
           }`}>
-            <span className={`text-xs font-black uppercase truncate flex-1 ${isLive ? 'text-red-900' : 'text-slate-700'}`}>{homeTeam?.name || '---'}</span>
+            <span className={`text-[10px] font-black uppercase truncate flex-1 ${isLive ? 'text-red-900' : 'text-slate-700'}`}>{homeTeam?.name || '---'}</span>
             <div className={isLive ? liveScoreClasses : (g.status === GameStatus.ENCERRADO ? endedScoreClasses : staticScoreClasses)}>
               {g.home_score}
             </div>
           </div>
-          <div className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
-            awayWinner ? 'bg-green-500/20 border-green-200' : 
-            isLive ? 'bg-red-50/20 border-red-100 ring-2 ring-red-500/5' : 
+          <div className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
+            awayWinner ? 'bg-green-500/10 border-green-100' : 
+            isLive ? 'bg-red-50/10 border-red-100 ring-1 ring-red-500/5' : 
             'bg-slate-50 border-slate-100'
           }`}>
-            <span className={`text-xs font-black uppercase truncate flex-1 ${isLive ? 'text-red-900' : 'text-slate-700'}`}>{awayTeam?.name || '---'}</span>
+            <span className={`text-[10px] font-black uppercase truncate flex-1 ${isLive ? 'text-red-900' : 'text-slate-700'}`}>{awayTeam?.name || '---'}</span>
             <div className={isLive ? liveScoreClasses : (g.status === GameStatus.ENCERRADO ? endedScoreClasses : staticScoreClasses)}>
               {g.away_score}
             </div>
           </div>
         </div>
 
-        <div className="flex justify-between items-center pt-2 border-t border-slate-50">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase">
-              <Calendar size={12} className="text-[#003b95]" /> {g.game_date ? new Date(g.game_date).toLocaleDateString('pt-BR') : '--/--'}
-            </div>
-            <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase">
-              <Clock size={12} className="text-[#d90429]" /> {g.game_time || '--:--'}
+        <div className="flex justify-between items-center pt-1 border-t border-slate-50">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 text-[8px] font-bold text-slate-400 uppercase">
+              <Clock size={10} className="text-[#d90429]" /> {g.game_time || '--:--'}
             </div>
           </div>
         </div>
@@ -295,22 +290,20 @@ export default function App() {
   const renderKnockoutBracket = () => {
     if (knockoutPhases.length === 0) return null;
 
-    // Pegamos a fase de mata-mata mais recente para exibir no "Chaveamento"
     const latestKnockout = knockoutPhases[knockoutPhases.length - 1];
 
     return (
-      <div className="space-y-6 animate-in slide-in-from-bottom-6 duration-700">
-        <div className="flex items-center gap-3 bg-white p-6 rounded-[2rem] shadow-xl border-l-8 border-[#d90429]">
-          <div className="bg-red-50 p-3 rounded-2xl text-[#d90429] shadow-inner">
-            <Swords size={24} />
+      <div className="space-y-4 animate-in slide-in-from-bottom-6 duration-700">
+        <div className="flex items-center gap-3 bg-white p-4 rounded-[1.5rem] shadow border-l-4 border-[#d90429]">
+          <div className="bg-red-50 p-2 rounded-xl text-[#d90429] shadow-inner">
+            <Swords size={20} />
           </div>
           <div>
-            <h3 className="text-xl font-black uppercase italic text-slate-800 leading-none">{latestKnockout.name}</h3>
-            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest mt-1">Confrontos de Mata-Mata Atuais</p>
+            <h3 className="text-lg font-black uppercase italic text-slate-800 leading-none">{latestKnockout.name}</h3>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {latestKnockout.games.map(g => {
             const h = teams.find(t => t.id.toString() === g.home_team_id.toString());
             const a = teams.find(t => t.id.toString() === g.away_team_id.toString());
@@ -318,44 +311,35 @@ export default function App() {
             const isFinished = g.status === GameStatus.ENCERRADO;
 
             return (
-              <div key={g.id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-lg overflow-hidden flex flex-col group hover:shadow-2xl transition-all duration-500">
-                <div className={`p-4 flex items-center justify-between ${isLive ? 'bg-red-500' : 'bg-[#003b95]'} transition-colors`}>
-                   <span className="text-[9px] font-black text-white uppercase italic tracking-widest">
+              <div key={g.id} className="bg-white rounded-[1.5rem] border border-slate-100 shadow overflow-hidden flex flex-col group hover:shadow-lg transition-all duration-500">
+                <div className={`p-2 flex items-center justify-between ${isLive ? 'bg-red-500' : 'bg-[#003b95]'} transition-colors`}>
+                   <span className="text-[8px] font-black text-white uppercase italic tracking-widest">
                      {isLive ? 'AO VIVO' : isFinished ? 'ENCERRADO' : 'AGENDADO'}
                    </span>
-                   <div className="flex items-center gap-2 text-white/60 text-[8px] font-bold uppercase">
-                     <Calendar size={10} /> {g.game_date ? new Date(g.game_date).toLocaleDateString('pt-BR') : '--'}
-                   </div>
                 </div>
                 
-                <div className="p-8 flex items-center justify-between gap-4">
-                  <div className="flex-1 flex flex-col items-center gap-3 text-center">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all ${isFinished && g.home_score > g.away_score ? 'bg-green-50 border-green-500 text-green-600 scale-110 shadow-lg' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
-                      <Shield size={28} />
-                    </div>
-                    <span className={`text-xs font-black uppercase leading-tight ${isFinished && g.home_score > g.away_score ? 'text-slate-900' : 'text-slate-500'}`}>{h?.name || '---'}</span>
+                <div className="p-4 flex items-center justify-between gap-2">
+                  <div className="flex-1 flex flex-col items-center gap-1 text-center">
+                    <span className={`text-[10px] font-black uppercase leading-tight ${isFinished && g.home_score > g.away_score ? 'text-slate-900' : 'text-slate-500'}`}>{h?.name || '---'}</span>
                   </div>
 
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-3">
-                      <span className={`text-4xl font-black italic font-sport ${isLive ? 'text-red-500 animate-pulse' : 'text-slate-800'}`}>{g.home_score}</span>
-                      <span className="text-slate-200 font-black text-xl">X</span>
-                      <span className={`text-4xl font-black italic font-sport ${isLive ? 'text-red-500 animate-pulse' : 'text-slate-800'}`}>{g.away_score}</span>
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-2xl font-black italic font-sport ${isLive ? 'text-red-500 animate-pulse' : 'text-slate-800'}`}>{g.home_score}</span>
+                      <span className="text-slate-200 font-black text-sm">X</span>
+                      <span className={`text-2xl font-black italic font-sport ${isLive ? 'text-red-500 animate-pulse' : 'text-slate-800'}`}>{g.away_score}</span>
                     </div>
-                    {!isFinished && <span className="bg-slate-100 text-slate-400 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter">{g.game_time || '--:--'}</span>}
+                    {!isFinished && <span className="bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full text-[7px] font-black uppercase tracking-tighter">{g.game_time || '--:--'}</span>}
                   </div>
 
-                  <div className="flex-1 flex flex-col items-center gap-3 text-center">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all ${isFinished && g.away_score > g.home_score ? 'bg-green-50 border-green-500 text-green-600 scale-110 shadow-lg' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
-                      <Shield size={28} />
-                    </div>
-                    <span className={`text-xs font-black uppercase leading-tight ${isFinished && g.away_score > g.home_score ? 'text-slate-900' : 'text-slate-500'}`}>{a?.name || '---'}</span>
+                  <div className="flex-1 flex flex-col items-center gap-1 text-center">
+                    <span className={`text-[10px] font-black uppercase leading-tight ${isFinished && g.away_score > g.home_score ? 'text-slate-900' : 'text-slate-500'}`}>{a?.name || '---'}</span>
                   </div>
                 </div>
 
                 {isLive && (
-                  <div className="bg-red-50 p-2 text-center">
-                    <span className="text-[7px] font-black text-red-500 uppercase italic tracking-[0.2em] animate-pulse">Partida em Tempo Real</span>
+                  <div className="bg-red-50 p-1 text-center">
+                    <span className="text-[6px] font-black text-red-500 uppercase italic tracking-[0.2em] animate-pulse">Partida em Tempo Real</span>
                   </div>
                 )}
               </div>
@@ -437,60 +421,59 @@ export default function App() {
         ) : view === 'admin' ? (
           <AdminPanel competitions={competitions} teams={teams} games={games} phases={phases} onRefresh={fetchData} />
         ) : (
-          <div className="space-y-8 animate-in fade-in duration-700">
-            <div className="flex p-2 bg-white rounded-2xl shadow-xl border border-slate-100 w-fit mx-auto mb-4">
-              <button onClick={() => setActiveTab('classificacao')} className={`px-8 md:px-10 py-3 rounded-xl font-black text-[11px] uppercase transition-all flex items-center gap-2 ${activeTab === 'classificacao' ? 'bg-[#003b95] text-white shadow-lg' : 'text-slate-500 hover:text-slate-800'}`}>
-                <Trophy size={16} /> Tabela
+          <div className="space-y-6 animate-in fade-in duration-700">
+            <div className="flex p-1.5 bg-white rounded-xl shadow border border-slate-100 w-fit mx-auto mb-2">
+              <button onClick={() => setActiveTab('classificacao')} className={`px-6 py-2 rounded-lg font-black text-[10px] uppercase transition-all flex items-center gap-2 ${activeTab === 'classificacao' ? 'bg-[#003b95] text-white shadow' : 'text-slate-500 hover:text-slate-800'}`}>
+                <Trophy size={14} /> Tabela
               </button>
-              <button onClick={() => setActiveTab('jogos')} className={`px-8 md:px-10 py-3 rounded-xl font-black text-[11px] uppercase transition-all flex items-center gap-2 ${activeTab === 'jogos' ? 'bg-[#003b95] text-white shadow-lg' : 'text-slate-500 hover:text-slate-800'}`}>
-                <Gamepad2 size={16} /> Jogos
+              <button onClick={() => setActiveTab('jogos')} className={`px-6 py-2 rounded-lg font-black text-[10px] uppercase transition-all flex items-center gap-2 ${activeTab === 'jogos' ? 'bg-[#003b95] text-white shadow' : 'text-slate-500 hover:text-slate-800'}`}>
+                <Gamepad2 size={14} /> Jogos
               </button>
             </div>
 
             {activeTab === 'classificacao' && (
-              <div className="space-y-12 pb-24">
-                {/* Se não houver fases de grupos, mostramos o chaveamento de mata-mata resumido */}
+              <div className="space-y-6 pb-12">
                 {groupedStandings.length === 0 ? (
                   <div className="max-w-4xl mx-auto">
                     {knockoutPhases.length > 0 ? renderKnockoutBracket() : (
-                      <div className="text-center py-24 bg-white rounded-[3rem] shadow-xl border border-dashed border-slate-200">
-                        <Trophy size={48} className="mx-auto text-slate-200 mb-4" />
-                        <p className="font-black text-slate-300 uppercase italic">Aguardando Início da Competição</p>
+                      <div className="text-center py-12 bg-white rounded-[2rem] shadow border border-dashed border-slate-200">
+                        <Trophy size={32} className="mx-auto text-slate-200 mb-2" />
+                        <p className="font-black text-slate-300 text-xs uppercase italic">Aguardando Início da Competição</p>
                       </div>
                     )}
                   </div>
                 ) : (
                   groupedStandings.map((group, gIdx) => (
-                    <div key={group.id} className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden animate-in slide-in-from-bottom-6 duration-500" style={{ animationDelay: `${gIdx * 100}ms` }}>
-                      <div className="bg-[#003b95] px-6 py-4 flex items-center justify-between border-b-4 border-[#d90429]">
-                         <div className="flex items-center gap-3">
-                            <div className="bg-white/10 p-2 rounded-xl text-white shadow-inner"><TrophyIcon size={18} /></div>
-                            <h3 className="font-black italic uppercase text-white text-base tracking-wide leading-none">{group.displayName}</h3>
+                    <div key={group.id} className="bg-white rounded-[1.5rem] shadow border border-slate-100 overflow-hidden animate-in slide-in-from-bottom-6 duration-500" style={{ animationDelay: `${gIdx * 100}ms` }}>
+                      <div className="bg-[#003b95] px-4 py-3 flex items-center justify-between border-b-2 border-[#d90429]">
+                         <div className="flex items-center gap-2">
+                            <div className="bg-white/10 p-1.5 rounded-lg text-white"><TrophyIcon size={14} /></div>
+                            <h3 className="font-black italic uppercase text-white text-sm tracking-wide leading-none">{group.displayName}</h3>
                          </div>
                       </div>
                       <div className="overflow-x-auto no-scrollbar">
-                        <table className="w-full text-left text-xs">
+                        <table className="w-full text-left text-[10px]">
                           <thead className="bg-slate-50 text-slate-400 font-black uppercase border-b border-slate-100">
                             <tr>
-                              <th className="px-4 py-3 w-16 text-center">#</th>
-                              <th className="px-3 py-3">Time</th>
-                              <th className="px-3 py-3 text-center bg-[#003b95]/5 text-[#003b95]">P</th>
-                              <th className="px-3 py-3 text-center">J</th>
-                              <th className="px-3 py-3 text-center">V</th>
-                              <th className="px-3 py-3 text-center">SG</th>
+                              <th className="px-3 py-2 w-12 text-center">#</th>
+                              <th className="px-2 py-2">Time</th>
+                              <th className="px-2 py-2 text-center bg-[#003b95]/5 text-[#003b95]">P</th>
+                              <th className="px-2 py-2 text-center">J</th>
+                              <th className="px-2 py-2 text-center">V</th>
+                              <th className="px-2 py-2 text-center">SG</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
                             {group.standings.map((team, idx) => (
                               <tr key={team.id} className="hover:bg-blue-50/40 transition-colors group/row">
-                                <td className="px-4 py-3 text-center">
-                                  <span className={`inline-block w-7 h-7 leading-7 rounded-lg font-black text-[12px] ${idx < 4 ? 'bg-[#003b95] text-white' : 'bg-slate-100 text-slate-400'}`}>{idx + 1}</span>
+                                <td className="px-3 py-2 text-center">
+                                  <span className={`inline-block w-5 h-5 leading-5 rounded-md font-black text-[10px] ${idx < 4 ? 'bg-[#003b95] text-white' : 'bg-slate-100 text-slate-400'}`}>{idx + 1}</span>
                                 </td>
-                                <td className="px-3 py-3 font-black text-slate-800 uppercase text-[12px] group-hover/row:text-[#d90429] transition-colors">{team.name}</td>
-                                <td className="px-3 py-3 text-center bg-[#003b95]/5 font-black text-[14px] text-[#003b95]">{team.pts}</td>
-                                <td className="px-3 py-3 text-center font-bold text-slate-500">{team.pj}</td>
-                                <td className="px-3 py-3 text-center font-bold text-slate-500">{team.v}</td>
-                                <td className={`px-3 py-3 text-center font-black text-[12px] ${team.sg > 0 ? 'text-green-500' : team.sg < 0 ? 'text-red-500' : 'text-slate-400'}`}>{team.sg}</td>
+                                <td className="px-2 py-2 font-black text-slate-800 uppercase text-[10px] group-hover/row:text-[#d90429] transition-colors">{team.name}</td>
+                                <td className="px-2 py-2 text-center bg-[#003b95]/5 font-black text-[11px] text-[#003b95]">{team.pts}</td>
+                                <td className="px-2 py-2 text-center font-bold text-slate-500">{team.pj}</td>
+                                <td className="px-2 py-2 text-center font-bold text-slate-500">{team.v}</td>
+                                <td className={`px-2 py-2 text-center font-black text-[10px] ${team.sg > 0 ? 'text-green-500' : team.sg < 0 ? 'text-red-500' : 'text-slate-400'}`}>{team.sg}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -500,10 +483,8 @@ export default function App() {
                   ))
                 )}
 
-                {/* Se houver mata-mata ADICIONAL à fase de grupos, mostramos também um resumo do mata-mata no final da tabela */}
                 {groupedStandings.length > 0 && knockoutPhases.length > 0 && (
-                  <div className="max-w-4xl mx-auto mt-12">
-                    <h4 className="text-center font-black uppercase italic text-slate-400 text-[10px] mb-6 tracking-[0.3em]">Resumo do Mata-Mata</h4>
+                  <div className="max-w-4xl mx-auto mt-6">
                     {renderKnockoutBracket()}
                   </div>
                 )}
@@ -511,41 +492,40 @@ export default function App() {
             )}
 
             {activeTab === 'jogos' && (
-              <div className="space-y-12 pb-24">
+              <div className="space-y-6 pb-12">
                 {structuredGames.map((phase: any, pIdx) => (
-                  <div key={phase.id} className="space-y-6 animate-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: `${pIdx * 100}ms` }}>
-                    <div className="bg-[#003b95] text-white px-8 py-4 rounded-[2rem] flex items-center justify-between shadow-xl border-b-4 border-[#d90429]">
-                      <div className="flex items-center gap-4">
-                        <Layers size={20} className="text-blue-300" />
-                        <h4 className="font-black uppercase italic tracking-widest">{phase.name}</h4>
+                  <div key={phase.id} className="space-y-4 animate-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: `${pIdx * 100}ms` }}>
+                    <div className="bg-[#003b95] text-white px-6 py-3 rounded-[1.5rem] flex items-center justify-between shadow border-b-2 border-[#d90429]">
+                      <div className="flex items-center gap-3">
+                        <Layers size={16} className="text-blue-300" />
+                        <h4 className="font-black uppercase italic text-sm tracking-widest">{phase.name}</h4>
                       </div>
-                      <span className="text-[10px] font-bold bg-white/10 px-4 py-1 rounded-full uppercase">{phase.type}</span>
                     </div>
 
                     {phase.groups && phase.groups.length > 0 ? (
-                      <div className="space-y-10">
+                      <div className="space-y-6">
                         {phase.groups.map((group: any) => (
-                          <div key={group.name} className="space-y-4">
-                            <div className="flex items-center gap-3 ml-4">
-                              <Users size={16} className="text-[#003b95]" />
-                              <h5 className="font-black text-[#003b95] uppercase italic tracking-wider">{group.name}</h5>
-                              <div className="h-[2px] bg-slate-100 flex-1 rounded-full"></div>
+                          <div key={group.name} className="space-y-3">
+                            <div className="flex items-center gap-2 ml-2">
+                              <Users size={14} className="text-[#003b95]" />
+                              <h5 className="font-black text-[#003b95] text-[10px] uppercase italic tracking-wider">{group.name}</h5>
+                              <div className="h-[1px] bg-slate-100 flex-1 rounded-full"></div>
                             </div>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                               {group.games.map((g: Game) => renderGameCard(g))}
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {(phase.games || []).map((g: Game) => renderGameCard(g))}
                       </div>
                     )}
                     
                     {(!phase.games || phase.games.length === 0) && (!phase.groups || phase.groups.length === 0) && (
-                      <div className="text-center py-10 bg-white rounded-[2.5rem] border border-dashed border-slate-200">
-                        <p className="text-[10px] font-black uppercase text-slate-300">Aguardando definição de partidas</p>
+                      <div className="text-center py-6 bg-white rounded-[1.5rem] border border-dashed border-slate-200">
+                        <p className="text-[8px] font-black uppercase text-slate-300">Aguardando definição de partidas</p>
                       </div>
                     )}
                   </div>
