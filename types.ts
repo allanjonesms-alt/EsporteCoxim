@@ -39,12 +39,17 @@ export interface Phase {
 export interface Game {
   id: string;
   competition_id: string;
-  phase_id?: string; // Novo campo para vincular jogo à fase
+  phase_id?: string;
   home_team_id: string;
   away_team_id: string;
-  home_score: number;
-  away_score: number;
+  home_score: number; // No Vôlei, representa Sets Vencidos
+  away_score: number; // No Vôlei, representa Sets Vencidos
   status: GameStatus;
   game_date?: string;
   game_time?: string;
+  // Campos de Vôlei
+  target_sets?: number;
+  is_set_active?: boolean;
+  current_set_points_home?: number;
+  current_set_points_away?: number;
 }

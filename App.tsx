@@ -14,7 +14,8 @@ import {
   Clock,
   Swords,
   Layers,
-  ChevronRight
+  ChevronRight,
+  Medal
 } from 'lucide-react';
 import { Competition, Team, Game, CompStatus, GameStatus, Phase } from './types';
 import { DEFAULT_ADMIN, LOGO_DATA_URL } from './constants';
@@ -32,7 +33,7 @@ export default function App() {
   
   const [view, setView] = useState<'user' | 'admin' | 'login'>('user');
   const [isLogged, setIsLogged] = useState(() => localStorage.getItem('ec_session') === 'true');
-  const [loginForm, setLoginForm] = useState({ phone: '67984373039', pass: '@Jones2028' });
+  const [loginForm, setLoginForm] = useState({ phone: '', pass: '' });
 
   const fetchData = async () => {
     try {
@@ -172,18 +173,18 @@ export default function App() {
       [GameStatus.ENCERRADO]: 3
     };
 
-    const sortGamesByStatus = (list: Game[]) => {
+    const sortGamesByStatusAndTime = (list: Game[]) => {
       return [...list].sort((a, b) => {
         const pA = statusPriorityMap[a.status] || 99;
         const pB = statusPriorityMap[b.status] || 99;
         if (pA !== pB) return pA - pB;
-        const dateA = new Date(`${a.game_date}T${a.game_time || '00:00'}`).getTime();
-        const dateB = new Date(`${b.game_date}T${b.game_time || '00:00'}`).getTime();
-        return dateA - dateB;
+        const timeA = `${a.game_date || '9999-12-31'}T${a.game_time || '00:00'}`;
+        const timeB = `${b.game_date || '9999-12-31'}T${b.game_time || '00:00'}`;
+        return timeA.localeCompare(timeB);
       });
     };
 
-    const ghostGames = sortGamesByStatus(compGames.filter(g => !g.phase_id));
+    const ghostGames = sortGamesByStatusAndTime(compGames.filter(g => !g.phase_id));
 
     return [
       ...compPhases.map(phase => {
@@ -194,14 +195,14 @@ export default function App() {
             ...phase,
             groups: detectedGroups.map(group => ({
               ...group,
-              games: sortGamesByStatus(phaseGames.filter(g => 
+              games: sortGamesByStatusAndTime(phaseGames.filter(g => 
                 group.teamIds.includes(g.home_team_id.toString()) && 
                 group.teamIds.includes(g.away_team_id.toString())
               ))
             }))
           };
         }
-        return { ...phase, games: sortGamesByStatus(phaseGames), groups: [] };
+        return { ...phase, games: sortGamesByStatusAndTime(phaseGames), groups: [] };
       }),
       ...(ghostGames.length > 0 ? [{ id: 'none', name: 'Geral', type: 'Geral', games: ghostGames, groups: [] }] : [])
     ];
@@ -231,18 +232,32 @@ export default function App() {
       .sort((a, b) => b.pts - a.pts || b.v - a.v || b.sg - a.sg || b.gf - a.gf);
   }
 
+  const formatDisplayDate = (dateStr?: string) => {
+    if (!dateStr) return '--/--';
+    const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+    const parts = cleanDate.split('-');
+    if (parts.length < 3) return cleanDate;
+    return `${parts[2]}/${parts[1]}`;
+  };
+
+  const formatDisplayTime = (timeStr?: string) => {
+    if (!timeStr) return '--:--';
+    return timeStr.substring(0, 5);
+  };
+
   const renderGameCard = (g: Game) => {
     const homeTeam = teams.find(t => t.id.toString() === g.home_team_id.toString());
     const awayTeam = teams.find(t => t.id.toString() === g.away_team_id.toString());
-    const isLive = g.status === GameStatus.AO_VIVO;
+    const comp = competitions.find(c => c.id.toString() === g.competition_id.toString());
+    const isVolei = comp?.modality === 'Volei';
     const isFinished = g.status === GameStatus.ENCERRADO;
+    const isLive = g.status === GameStatus.AO_VIVO;
+    
     const homeWinner = isFinished && g.home_score > g.away_score;
     const awayWinner = isFinished && g.away_score > g.home_score;
 
-    const scoreBaseClasses = "w-8 h-8 flex items-center justify-center font-black text-lg rounded-lg shadow-sm transition-all duration-300";
-    const liveScoreClasses = `${scoreBaseClasses} bg-red-50 border-2 border-red-500 text-red-600 animate-pulse ring-4 ring-red-500/10`;
-    const staticScoreClasses = `${scoreBaseClasses} bg-slate-100 text-slate-400 border border-slate-200`;
-    const endedScoreClasses = `${scoreBaseClasses} bg-white border-2 border-slate-800 text-slate-800`;
+    const homePoints = isVolei ? (g.current_set_points_home || 0) : g.home_score;
+    const awayPoints = isVolei ? (g.current_set_points_away || 0) : g.away_score;
 
     return (
       <div key={g.id} className="bg-white p-3 rounded-[1.5rem] shadow shadow-[#003b95]/5 border border-slate-50 hover:shadow-lg transition-all flex flex-col gap-2 border-l-4 border-l-[#003b95]">
@@ -254,24 +269,34 @@ export default function App() {
         </div>
 
         <div className="space-y-1.5">
-          <div className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
-            homeWinner ? 'bg-green-500/10 border-green-100' : 
-            isLive ? 'bg-red-50/10 border-red-100 ring-1 ring-red-500/5' : 
-            'bg-slate-50 border-slate-100'
-          }`}>
-            <span className={`text-[10px] font-black uppercase truncate flex-1 ${isLive ? 'text-red-900' : 'text-slate-700'}`}>{homeTeam?.name || '---'}</span>
-            <div className={isLive ? liveScoreClasses : (g.status === GameStatus.ENCERRADO ? endedScoreClasses : staticScoreClasses)}>
-              {g.home_score}
+          {/* CASA */}
+          <div className={`flex items-center justify-between p-2 rounded-xl border transition-all ${homeWinner ? 'bg-[#003b95]/5 border-[#003b95]/20' : 'bg-slate-50 border-slate-100'}`}>
+            <div className="flex items-center gap-2 flex-1">
+              <span className={`text-[10px] font-black uppercase truncate ${homeWinner ? 'text-[#003b95]' : 'text-slate-700'}`}>{homeTeam?.name || '---'}</span>
+              {homeWinner && <Medal size={12} className="text-[#d90429]" />}
+            </div>
+            <div className="flex items-center gap-1">
+               {isVolei && (
+                 <span className="text-[10px] font-black italic text-[#003b95] opacity-60 mr-1">{g.home_score}</span>
+               )}
+               <div className="w-10 h-10 flex items-center justify-center bg-white border border-slate-800 text-slate-800 font-black text-lg rounded-lg shadow-sm">
+                 {homePoints}
+               </div>
             </div>
           </div>
-          <div className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
-            awayWinner ? 'bg-green-500/10 border-green-100' : 
-            isLive ? 'bg-red-50/10 border-red-100 ring-1 ring-red-500/5' : 
-            'bg-slate-50 border-slate-100'
-          }`}>
-            <span className={`text-[10px] font-black uppercase truncate flex-1 ${isLive ? 'text-red-900' : 'text-slate-700'}`}>{awayTeam?.name || '---'}</span>
-            <div className={isLive ? liveScoreClasses : (g.status === GameStatus.ENCERRADO ? endedScoreClasses : staticScoreClasses)}>
-              {g.away_score}
+          {/* VISITANTE */}
+          <div className={`flex items-center justify-between p-2 rounded-xl border transition-all ${awayWinner ? 'bg-[#003b95]/5 border-[#003b95]/20' : 'bg-slate-50 border-slate-100'}`}>
+            <div className="flex items-center gap-2 flex-1">
+              <span className={`text-[10px] font-black uppercase truncate ${awayWinner ? 'text-[#003b95]' : 'text-slate-700'}`}>{awayTeam?.name || '---'}</span>
+              {awayWinner && <Medal size={12} className="text-[#d90429]" />}
+            </div>
+            <div className="flex items-center gap-1">
+               {isVolei && (
+                 <span className="text-[10px] font-black italic text-[#d90429] opacity-60 mr-1">{g.away_score}</span>
+               )}
+               <div className="w-10 h-10 flex items-center justify-center bg-white border border-slate-800 text-slate-800 font-black text-lg rounded-lg shadow-sm">
+                 {awayPoints}
+               </div>
             </div>
           </div>
         </div>
@@ -279,7 +304,10 @@ export default function App() {
         <div className="flex justify-between items-center pt-1 border-t border-slate-50">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 text-[8px] font-bold text-slate-400 uppercase">
-              <Clock size={10} className="text-[#d90429]" /> {g.game_time || '--:--'}
+              <Clock size={10} className="text-[#d90429]" /> {formatDisplayTime(g.game_time)}
+            </div>
+            <div className="flex items-center gap-1 text-[8px] font-bold text-slate-400 uppercase">
+              <Calendar size={10} className="text-[#003b95]" /> {formatDisplayDate(g.game_date)}
             </div>
           </div>
         </div>
@@ -289,9 +317,7 @@ export default function App() {
 
   const renderKnockoutBracket = () => {
     if (knockoutPhases.length === 0) return null;
-
     const latestKnockout = knockoutPhases[knockoutPhases.length - 1];
-
     return (
       <div className="space-y-4 animate-in slide-in-from-bottom-6 duration-700">
         <div className="flex items-center gap-3 bg-white p-4 rounded-[1.5rem] shadow border-l-4 border-[#d90429]">
@@ -302,46 +328,59 @@ export default function App() {
             <h3 className="text-lg font-black uppercase italic text-slate-800 leading-none">{latestKnockout.name}</h3>
           </div>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {latestKnockout.games.map(g => {
             const h = teams.find(t => t.id.toString() === g.home_team_id.toString());
             const a = teams.find(t => t.id.toString() === g.away_team_id.toString());
-            const isLive = g.status === GameStatus.AO_VIVO;
             const isFinished = g.status === GameStatus.ENCERRADO;
+            const isLive = g.status === GameStatus.AO_VIVO;
+            
+            const homeWon = isFinished && g.home_score > g.away_score;
+            const awayWon = isFinished && g.away_score > g.home_score;
 
             return (
               <div key={g.id} className="bg-white rounded-[1.5rem] border border-slate-100 shadow overflow-hidden flex flex-col group hover:shadow-lg transition-all duration-500">
                 <div className={`p-2 flex items-center justify-between ${isLive ? 'bg-red-500' : 'bg-[#003b95]'} transition-colors`}>
                    <span className="text-[8px] font-black text-white uppercase italic tracking-widest">
-                     {isLive ? 'AO VIVO' : isFinished ? 'ENCERRADO' : 'AGENDADO'}
+                     {isLive ? 'AO VIVO' : isFinished ? 'FINALIZADO' : 'AGENDADO'}
                    </span>
                 </div>
-                
-                <div className="p-4 flex items-center justify-between gap-2">
+                <div className="p-4 flex items-center justify-between gap-4">
                   <div className="flex-1 flex flex-col items-center gap-1 text-center">
-                    <span className={`text-[10px] font-black uppercase leading-tight ${isFinished && g.home_score > g.away_score ? 'text-slate-900' : 'text-slate-500'}`}>{h?.name || '---'}</span>
+                    <span className={`text-[11px] font-black uppercase leading-tight transition-all ${homeWon ? 'text-[#003b95] scale-110 drop-shadow-sm' : 'text-slate-400'}`}>
+                      {h?.name || '---'}
+                    </span>
+                    {homeWon && <Medal size={14} className="text-[#d90429] animate-bounce" />}
                   </div>
 
-                  <div className="flex flex-col items-center">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-2xl font-black italic font-sport ${isLive ? 'text-red-500 animate-pulse' : 'text-slate-800'}`}>{g.home_score}</span>
-                      <span className="text-slate-200 font-black text-sm">X</span>
-                      <span className={`text-2xl font-black italic font-sport ${isLive ? 'text-red-500 animate-pulse' : 'text-slate-800'}`}>{g.away_score}</span>
+                  <div className="flex flex-col items-center px-4">
+                    <div className="flex items-center gap-4">
+                      {isFinished ? (
+                        <>
+                          <span className={`text-4xl font-black italic font-sport ${homeWon ? 'text-[#003b95]' : 'text-slate-300'}`}>
+                            {g.home_score}
+                          </span>
+                          <span className="text-slate-200 font-black text-sm">X</span>
+                          <span className={`text-4xl font-black italic font-sport ${awayWon ? 'text-[#003b95]' : 'text-slate-300'}`}>
+                            {g.away_score}
+                          </span>
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center">
+                           <span className="text-4xl font-black text-slate-100 italic font-sport tracking-widest">X</span>
+                           {isLive && <span className="text-[6px] font-black text-red-500 uppercase italic animate-pulse">EM CAMPO</span>}
+                        </div>
+                      )}
                     </div>
-                    {!isFinished && <span className="bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full text-[7px] font-black uppercase tracking-tighter">{g.game_time || '--:--'}</span>}
                   </div>
 
                   <div className="flex-1 flex flex-col items-center gap-1 text-center">
-                    <span className={`text-[10px] font-black uppercase leading-tight ${isFinished && g.away_score > g.home_score ? 'text-slate-900' : 'text-slate-500'}`}>{a?.name || '---'}</span>
+                    <span className={`text-[11px] font-black uppercase leading-tight transition-all ${awayWon ? 'text-[#003b95] scale-110 drop-shadow-sm' : 'text-slate-400'}`}>
+                      {a?.name || '---'}
+                    </span>
+                    {awayWon && <Medal size={14} className="text-[#d90429] animate-bounce" />}
                   </div>
                 </div>
-
-                {isLive && (
-                  <div className="bg-red-50 p-1 text-center">
-                    <span className="text-[6px] font-black text-red-500 uppercase italic tracking-[0.2em] animate-pulse">Partida em Tempo Real</span>
-                  </div>
-                )}
               </div>
             );
           })}
@@ -482,7 +521,6 @@ export default function App() {
                     </div>
                   ))
                 )}
-
                 {groupedStandings.length > 0 && knockoutPhases.length > 0 && (
                   <div className="max-w-4xl mx-auto mt-6">
                     {renderKnockoutBracket()}
@@ -501,7 +539,6 @@ export default function App() {
                         <h4 className="font-black uppercase italic text-sm tracking-widest">{phase.name}</h4>
                       </div>
                     </div>
-
                     {phase.groups && phase.groups.length > 0 ? (
                       <div className="space-y-6">
                         {phase.groups.map((group: any) => (
@@ -522,7 +559,6 @@ export default function App() {
                         {(phase.games || []).map((g: Game) => renderGameCard(g))}
                       </div>
                     )}
-                    
                     {(!phase.games || phase.games.length === 0) && (!phase.groups || phase.groups.length === 0) && (
                       <div className="text-center py-6 bg-white rounded-[1.5rem] border border-dashed border-slate-200">
                         <p className="text-[8px] font-black uppercase text-slate-300">Aguardando definição de partidas</p>
