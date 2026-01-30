@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Trophy, 
@@ -12,7 +13,8 @@ import {
   Users,
   Clock,
   Swords,
-  Layers
+  Layers,
+  ChevronRight
 } from 'lucide-react';
 import { Competition, Team, Game, CompStatus, GameStatus, Phase } from './types';
 import { DEFAULT_ADMIN, LOGO_DATA_URL } from './constants';
@@ -145,20 +147,21 @@ export default function App() {
         });
       }
     });
-    if (finalGroups.length === 0) {
-      const generalGames = games.filter(g => g.competition_id.toString() === activeComp.id.toString());
-      if (generalGames.length > 0) {
-        finalGroups.push({
-          id: 'general',
-          displayName: activeComp.current_phase || 'Classificação Geral',
-          standings: calculateStandings(generalGames)
-        });
-      }
-    }
     return finalGroups;
   }, [activeComp, games, teams, phases]);
 
-  // Hierarquia de Jogos (Mesma do GameManager.tsx)
+  // Identifica se a competição está exclusivamente em mata-mata ou qual o mata-mata atual
+  const knockoutPhases = useMemo(() => {
+    if (!activeComp) return [];
+    return phases
+      .filter(p => p.competitions_id.toString() === activeComp.id.toString() && p.type === 'Mata-Mata')
+      .map(p => ({
+        ...p,
+        games: games.filter(g => g.phase_id?.toString() === p.id.toString())
+      }))
+      .filter(p => p.games.length > 0);
+  }, [activeComp, phases, games]);
+
   const structuredGames = useMemo(() => {
     if (!activeComp) return [];
     const compGames = games.filter(g => g.competition_id.toString() === selectedCompId);
@@ -289,6 +292,80 @@ export default function App() {
     );
   };
 
+  const renderKnockoutBracket = () => {
+    if (knockoutPhases.length === 0) return null;
+
+    // Pegamos a fase de mata-mata mais recente para exibir no "Chaveamento"
+    const latestKnockout = knockoutPhases[knockoutPhases.length - 1];
+
+    return (
+      <div className="space-y-6 animate-in slide-in-from-bottom-6 duration-700">
+        <div className="flex items-center gap-3 bg-white p-6 rounded-[2rem] shadow-xl border-l-8 border-[#d90429]">
+          <div className="bg-red-50 p-3 rounded-2xl text-[#d90429] shadow-inner">
+            <Swords size={24} />
+          </div>
+          <div>
+            <h3 className="text-xl font-black uppercase italic text-slate-800 leading-none">{latestKnockout.name}</h3>
+            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest mt-1">Confrontos de Mata-Mata Atuais</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {latestKnockout.games.map(g => {
+            const h = teams.find(t => t.id.toString() === g.home_team_id.toString());
+            const a = teams.find(t => t.id.toString() === g.away_team_id.toString());
+            const isLive = g.status === GameStatus.AO_VIVO;
+            const isFinished = g.status === GameStatus.ENCERRADO;
+
+            return (
+              <div key={g.id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-lg overflow-hidden flex flex-col group hover:shadow-2xl transition-all duration-500">
+                <div className={`p-4 flex items-center justify-between ${isLive ? 'bg-red-500' : 'bg-[#003b95]'} transition-colors`}>
+                   <span className="text-[9px] font-black text-white uppercase italic tracking-widest">
+                     {isLive ? 'AO VIVO' : isFinished ? 'ENCERRADO' : 'AGENDADO'}
+                   </span>
+                   <div className="flex items-center gap-2 text-white/60 text-[8px] font-bold uppercase">
+                     <Calendar size={10} /> {g.game_date ? new Date(g.game_date).toLocaleDateString('pt-BR') : '--'}
+                   </div>
+                </div>
+                
+                <div className="p-8 flex items-center justify-between gap-4">
+                  <div className="flex-1 flex flex-col items-center gap-3 text-center">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all ${isFinished && g.home_score > g.away_score ? 'bg-green-50 border-green-500 text-green-600 scale-110 shadow-lg' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                      <Shield size={28} />
+                    </div>
+                    <span className={`text-xs font-black uppercase leading-tight ${isFinished && g.home_score > g.away_score ? 'text-slate-900' : 'text-slate-500'}`}>{h?.name || '---'}</span>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-4xl font-black italic font-sport ${isLive ? 'text-red-500 animate-pulse' : 'text-slate-800'}`}>{g.home_score}</span>
+                      <span className="text-slate-200 font-black text-xl">X</span>
+                      <span className={`text-4xl font-black italic font-sport ${isLive ? 'text-red-500 animate-pulse' : 'text-slate-800'}`}>{g.away_score}</span>
+                    </div>
+                    {!isFinished && <span className="bg-slate-100 text-slate-400 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter">{g.game_time || '--:--'}</span>}
+                  </div>
+
+                  <div className="flex-1 flex flex-col items-center gap-3 text-center">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all ${isFinished && g.away_score > g.home_score ? 'bg-green-50 border-green-500 text-green-600 scale-110 shadow-lg' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                      <Shield size={28} />
+                    </div>
+                    <span className={`text-xs font-black uppercase leading-tight ${isFinished && g.away_score > g.home_score ? 'text-slate-900' : 'text-slate-500'}`}>{a?.name || '---'}</span>
+                  </div>
+                </div>
+
+                {isLive && (
+                  <div className="bg-red-50 p-2 text-center">
+                    <span className="text-[7px] font-black text-red-500 uppercase italic tracking-[0.2em] animate-pulse">Partida em Tempo Real</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans">
       <header className="bg-[#003b95] text-white shadow-xl sticky top-0 z-50 border-b-4 border-[#d90429]">
@@ -372,44 +449,64 @@ export default function App() {
 
             {activeTab === 'classificacao' && (
               <div className="space-y-12 pb-24">
-                {groupedStandings.map((group, gIdx) => (
-                  <div key={group.id} className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden animate-in slide-in-from-bottom-6 duration-500" style={{ animationDelay: `${gIdx * 100}ms` }}>
-                    <div className="bg-[#003b95] px-6 py-4 flex items-center justify-between border-b-4 border-[#d90429]">
-                       <div className="flex items-center gap-3">
-                          <div className="bg-white/10 p-2 rounded-xl text-white shadow-inner"><TrophyIcon size={18} /></div>
-                          <h3 className="font-black italic uppercase text-white text-base tracking-wide leading-none">{group.displayName}</h3>
-                       </div>
-                    </div>
-                    <div className="overflow-x-auto no-scrollbar">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-50 text-slate-400 font-black uppercase border-b border-slate-100">
-                          <tr>
-                            <th className="px-4 py-3 w-16 text-center">#</th>
-                            <th className="px-3 py-3">Time</th>
-                            <th className="px-3 py-3 text-center bg-[#003b95]/5 text-[#003b95]">P</th>
-                            <th className="px-3 py-3 text-center">J</th>
-                            <th className="px-3 py-3 text-center">V</th>
-                            <th className="px-3 py-3 text-center">SG</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {group.standings.map((team, idx) => (
-                            <tr key={team.id} className="hover:bg-blue-50/40 transition-colors group/row">
-                              <td className="px-4 py-3 text-center">
-                                <span className={`inline-block w-7 h-7 leading-7 rounded-lg font-black text-[12px] ${idx < 4 ? 'bg-[#003b95] text-white' : 'bg-slate-100 text-slate-400'}`}>{idx + 1}</span>
-                              </td>
-                              <td className="px-3 py-3 font-black text-slate-800 uppercase text-[12px] group-hover/row:text-[#d90429] transition-colors">{team.name}</td>
-                              <td className="px-3 py-3 text-center bg-[#003b95]/5 font-black text-[14px] text-[#003b95]">{team.pts}</td>
-                              <td className="px-3 py-3 text-center font-bold text-slate-500">{team.pj}</td>
-                              <td className="px-3 py-3 text-center font-bold text-slate-500">{team.v}</td>
-                              <td className={`px-3 py-3 text-center font-black text-[12px] ${team.sg > 0 ? 'text-green-500' : team.sg < 0 ? 'text-red-500' : 'text-slate-400'}`}>{team.sg}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                {/* Se não houver fases de grupos, mostramos o chaveamento de mata-mata resumido */}
+                {groupedStandings.length === 0 ? (
+                  <div className="max-w-4xl mx-auto">
+                    {knockoutPhases.length > 0 ? renderKnockoutBracket() : (
+                      <div className="text-center py-24 bg-white rounded-[3rem] shadow-xl border border-dashed border-slate-200">
+                        <Trophy size={48} className="mx-auto text-slate-200 mb-4" />
+                        <p className="font-black text-slate-300 uppercase italic">Aguardando Início da Competição</p>
+                      </div>
+                    )}
                   </div>
-                ))}
+                ) : (
+                  groupedStandings.map((group, gIdx) => (
+                    <div key={group.id} className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden animate-in slide-in-from-bottom-6 duration-500" style={{ animationDelay: `${gIdx * 100}ms` }}>
+                      <div className="bg-[#003b95] px-6 py-4 flex items-center justify-between border-b-4 border-[#d90429]">
+                         <div className="flex items-center gap-3">
+                            <div className="bg-white/10 p-2 rounded-xl text-white shadow-inner"><TrophyIcon size={18} /></div>
+                            <h3 className="font-black italic uppercase text-white text-base tracking-wide leading-none">{group.displayName}</h3>
+                         </div>
+                      </div>
+                      <div className="overflow-x-auto no-scrollbar">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 text-slate-400 font-black uppercase border-b border-slate-100">
+                            <tr>
+                              <th className="px-4 py-3 w-16 text-center">#</th>
+                              <th className="px-3 py-3">Time</th>
+                              <th className="px-3 py-3 text-center bg-[#003b95]/5 text-[#003b95]">P</th>
+                              <th className="px-3 py-3 text-center">J</th>
+                              <th className="px-3 py-3 text-center">V</th>
+                              <th className="px-3 py-3 text-center">SG</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {group.standings.map((team, idx) => (
+                              <tr key={team.id} className="hover:bg-blue-50/40 transition-colors group/row">
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`inline-block w-7 h-7 leading-7 rounded-lg font-black text-[12px] ${idx < 4 ? 'bg-[#003b95] text-white' : 'bg-slate-100 text-slate-400'}`}>{idx + 1}</span>
+                                </td>
+                                <td className="px-3 py-3 font-black text-slate-800 uppercase text-[12px] group-hover/row:text-[#d90429] transition-colors">{team.name}</td>
+                                <td className="px-3 py-3 text-center bg-[#003b95]/5 font-black text-[14px] text-[#003b95]">{team.pts}</td>
+                                <td className="px-3 py-3 text-center font-bold text-slate-500">{team.pj}</td>
+                                <td className="px-3 py-3 text-center font-bold text-slate-500">{team.v}</td>
+                                <td className={`px-3 py-3 text-center font-black text-[12px] ${team.sg > 0 ? 'text-green-500' : team.sg < 0 ? 'text-red-500' : 'text-slate-400'}`}>{team.sg}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))
+                )}
+
+                {/* Se houver mata-mata ADICIONAL à fase de grupos, mostramos também um resumo do mata-mata no final da tabela */}
+                {groupedStandings.length > 0 && knockoutPhases.length > 0 && (
+                  <div className="max-w-4xl mx-auto mt-12">
+                    <h4 className="text-center font-black uppercase italic text-slate-400 text-[10px] mb-6 tracking-[0.3em]">Resumo do Mata-Mata</h4>
+                    {renderKnockoutBracket()}
+                  </div>
+                )}
               </div>
             )}
 

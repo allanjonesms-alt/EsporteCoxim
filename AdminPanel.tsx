@@ -33,7 +33,10 @@ export default function AdminPanel({ competitions, teams, games, phases, onRefre
     if (!newTeamData.name) return;
     setSyncing(true);
     try {
+      // Gerando ID manual para evitar erro de constraint NOT NULL
+      const manualId = `team_${Date.now()}`;
       const { error } = await supabase.from('teams').insert({ 
+        id: manualId,
         name: newTeamData.name,
         league: newTeamData.league || null
       });

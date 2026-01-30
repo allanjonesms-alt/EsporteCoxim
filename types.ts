@@ -26,6 +26,7 @@ export interface Competition {
   team_ids: string[];
   date?: string;
   current_phase?: string;
+  modality?: 'Futebol' | 'Volei';
 }
 
 export interface Phase {

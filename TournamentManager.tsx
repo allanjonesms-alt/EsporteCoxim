@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   TrophyIcon, 
@@ -63,7 +64,8 @@ export default function TournamentManager({ competitions, teams, phases, games, 
     name: '',
     date: '',
     status: CompStatus.AGENDADA,
-    phase: 'Fase de Grupos'
+    phase: 'Fase de Grupos',
+    modality: 'Futebol' as 'Futebol' | 'Volei'
   });
 
   const [newPhaseData, setNewPhaseData] = useState({
@@ -196,7 +198,8 @@ export default function TournamentManager({ competitions, teams, phases, games, 
         name: newCompData.name,
         status: newCompData.status,
         date: newCompData.date || new Date().toISOString().split('T')[0],
-        current_phase: newCompData.phase
+        current_phase: newCompData.phase,
+        modality: newCompData.modality
       };
       if (editingCompId) {
         const { error } = await supabase.from('leagues').update(payload).eq('id', editingCompId);
@@ -349,6 +352,13 @@ export default function TournamentManager({ competitions, teams, phases, games, 
     setSelectedTeamForAssignment(null);
   };
 
+  const handleAssignTeamByModality = (letter: string, idx: number) => {
+    const next = { ...groupAssignments };
+    next[letter][idx] = selectedTeamForAssignment || '';
+    setGroupAssignments(next);
+    setSelectedTeamForAssignment(null);
+  };
+
   const handleSaveGroups = async () => {
     if (!activePhaseId) return alert("Nenhuma fase selecionada.");
     setSyncing(true);
@@ -395,7 +405,13 @@ export default function TournamentManager({ competitions, teams, phases, games, 
           onClick={() => { 
             setEditingCompId(null); 
             setProgressionWinners(null);
-            setNewCompData({ name: '', date: '', status: CompStatus.AGENDADA, phase: 'Fase de Grupos' });
+            setNewCompData({ 
+              name: '', 
+              date: '', 
+              status: CompStatus.AGENDADA, 
+              phase: 'Fase de Grupos',
+              modality: 'Futebol'
+            });
             setIsCompModalOpen(true); 
           }} 
           className="bg-[#003b95] text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] flex items-center gap-2 shadow-lg hover:scale-105 transition-transform"
@@ -415,7 +431,8 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                 name: c.name, 
                 date: c.date || '', 
                 status: c.status, 
-                phase: c.current_phase || 'Fase de Grupos'
+                phase: c.current_phase || 'Fase de Grupos',
+                modality: c.modality || 'Futebol'
               }); 
               setIsCompModalOpen(true); 
             }} 
@@ -430,6 +447,9 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                  {c.status}
                </span>
                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{c.current_phase}</span>
+               {c.modality && (
+                 <span className="text-[7px] font-black uppercase px-2 py-0.5 rounded bg-blue-50 text-[#003b95] ml-auto">{c.modality}</span>
+               )}
             </div>
           </button>
         ))}
@@ -443,14 +463,27 @@ export default function TournamentManager({ competitions, teams, phases, games, 
                <Settings2 className="text-[#003b95]" /> Configurar Torneio
             </h3>
             <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Nome da Competição</label>
-                <input 
-                  placeholder="Ex: Copa Coxim 2025" 
-                  className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-transparent focus:border-[#003b95] outline-none" 
-                  value={newCompData.name} 
-                  onChange={e => setNewCompData({...newCompData, name: e.target.value})} 
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Nome da Competição</label>
+                  <input 
+                    placeholder="Ex: Copa Coxim 2025" 
+                    className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-transparent focus:border-[#003b95] outline-none" 
+                    value={newCompData.name} 
+                    onChange={e => setNewCompData({...newCompData, name: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Modalidade</label>
+                  <select 
+                    className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-transparent focus:border-[#003b95] outline-none" 
+                    value={newCompData.modality} 
+                    onChange={e => setNewCompData({...newCompData, modality: e.target.value as 'Futebol' | 'Volei'})}
+                  >
+                    <option value="Futebol">Futebol</option>
+                    <option value="Volei">Volei</option>
+                  </select>
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
