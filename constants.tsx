@@ -6,29 +6,40 @@ export const DEFAULT_ADMIN = {
   password: "@Jones2028"
 };
 
-// Logo em formato SVG (Vetor) para garantir carregamento e nitidez máxima
-export const LOGO_DATA_URL = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+/**
+ * LOGO ESPORTE COXIM - Versão SVG Vetorial
+ * Baseado na imagem enviada pelo usuário.
+ * Este código é imune a erros de carregamento de arquivos externos.
+ */
+export const LOGO_DATA_URL = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
   <defs>
-    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:%23003b95;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:%23002b6d;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:%23001a4d;stop-opacity:1" />
     </linearGradient>
   </defs>
+  <!-- Sombra projetada -->
+  <path d="M250 45 L410 110 L410 260 C410 370 250 440 250 440 C250 440 90 370 90 260 L90 110 L250 45 Z" fill="black" opacity="0.2" transform="translate(5, 5)"/>
   <!-- Escudo Principal -->
-  <path d="M200 20 L340 80 L340 220 C340 320 200 380 200 380 C200 380 60 320 60 220 L60 80 L200 20 Z" fill="url(%23grad1)" stroke="%23ffffff" stroke-width="8"/>
-  <path d="M200 35 L325 90 L325 215 C325 300 200 355 200 355 C200 355 75 300 75 215 L75 90 L200 35 Z" fill="none" stroke="%23d90429" stroke-width="4"/>
+  <path d="M250 40 L410 105 L410 255 C410 365 250 435 250 435 C250 435 90 365 90 255 L90 105 L250 40 Z" fill="url(%23shieldGrad)" stroke="white" stroke-width="10"/>
+  <!-- Borda Interna Vermelha -->
+  <path d="M250 60 L385 115 L385 250 C385 340 250 410 250 410 C250 410 115 340 115 250 L115 115 L250 60 Z" fill="none" stroke="%23d90429" stroke-width="5"/>
   
-  <!-- Estrela -->
-  <polygon points="200,60 215,100 255,100 222,125 235,165 200,140 165,165 178,125 145,100 185,100" fill="white" />
+  <!-- Estrela Superior -->
+  <polygon points="250,80 262,112 296,112 268,132 278,165 250,145 222,165 232,132 204,112 238,112" fill="white" />
   
-  <!-- Texto Esporte -->
-  <text x="200" y="230" font-family="Arial, sans-serif" font-weight="900" font-style="italic" font-size="52" fill="white" text-anchor="middle" style="text-transform: uppercase; letter-spacing: -2px;">ESPORTE</text>
+  <!-- Círculo da Bola -->
+  <circle cx="360" cy="130" r="50" fill="white" stroke="%23001a4d" stroke-width="2"/>
+  <path d="M330 110 L390 150 M360 80 L360 180 M310 130 L410 130" stroke="%23ccc" stroke-width="1" />
+  <circle cx="360" cy="130" r="48" fill="none" stroke="%23001a4d" stroke-width="1" stroke-dasharray="5,5"/>
+
+  <!-- Texto ESPORTE -->
+  <text x="245" y="275" font-family="Arial, sans-serif" font-weight="900" font-style="italic" font-size="62" fill="white" text-anchor="middle" style="text-transform: uppercase; letter-spacing: -3px;">ESPORTE</text>
   
-  <!-- Faixa Vermelha para Coxim -->
-  <rect x="80" y="245" width="240" height="60" rx="10" fill="%23d90429" transform="skewX(-5)" />
-  <text x="200" y="290" font-family="Arial, sans-serif" font-weight="900" font-style="italic" font-size="58" fill="white" text-anchor="middle" style="text-transform: uppercase; letter-spacing: -1px;">COXIM</text>
+  <!-- Caixa COXIM -->
+  <rect x="100" y="295" width="290" height="75" rx="8" fill="%23d90429" transform="skewX(-5) translate(5, 0)"/>
+  <text x="250" y="352" font-family="Arial, sans-serif" font-weight="900" font-style="italic" font-size="74" fill="white" text-anchor="middle" style="text-transform: uppercase; letter-spacing: -2px;">COXIM</text>
   
-  <!-- Ícone de Bola Simplificado -->
-  <circle cx="310" cy="100" r="45" fill="white" stroke="%23002b6d" stroke-width="2" />
-  <path d="M280 80 L340 120 M310 55 L310 145 M265 100 L355 100" stroke="%23002b6d" stroke-width="1" opacity="0.3" />
+  <!-- Detalhes de Brilho -->
+  <path d="M120 120 Q 250 80 380 120" fill="none" stroke="white" stroke-width="2" opacity="0.3" />
 </svg>`;

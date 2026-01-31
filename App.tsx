@@ -22,29 +22,36 @@ import { DEFAULT_ADMIN, LOGO_DATA_URL } from './constants';
 import AdminPanel from './AdminPanel';
 import { supabase } from './supabase';
 
-// Componente de Logo com Fallback e proporções corrigidas
+// Componente de Logo Dinâmico (Busca do banco ou usa fallback)
 const BrandLogo = ({ className = "w-16 h-16 md:w-24 md:h-24" }: { className?: string }) => {
-  const [error, setError] = useState(false);
+  const [currentLogo, setCurrentLogo] = useState(LOGO_DATA_URL);
 
-  // Fallback visual caso até o SVG falhe (raro)
-  if (error) {
-    return (
-      <div className={`${className} bg-gradient-to-br from-[#003b95] to-[#d90429] rounded-2xl flex items-center justify-center shadow-lg border-2 border-white/20`}>
-        <div className="flex flex-col items-center">
-          <Trophy className="text-white w-1/2 h-1/2" />
-          <span className="text-[10px] font-black text-white leading-none mt-1">EC</span>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    const fetchLogo = async () => {
+      const { data } = await supabase.from('app_config').select('value').eq('key', 'app_logo').single();
+      if (data?.value) setCurrentLogo(data.value);
+    };
+    fetchLogo();
+
+    // Listener para mudanças no logo em tempo real
+    const channel = supabase.channel('logo-update')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_config', filter: "key=eq.app_logo" }, 
+      payload => {
+        if (payload.new.value) setCurrentLogo(payload.new.value);
+      }).subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   return (
-    <div className={`${className} flex items-center justify-center p-1`}>
+    <div className={`${className} flex items-center justify-center`}>
       <img 
-        src={LOGO_DATA_URL} 
+        src={currentLogo} 
         alt="Esporte Coxim" 
-        className="w-full h-full object-contain transition-transform hover:scale-110 duration-500 drop-shadow-[0_10px_10px_rgba(0,0,0,0.3)]"
-        onError={() => setError(true)}
+        className="w-full h-full object-contain transition-transform hover:scale-110 duration-500 drop-shadow-[0_5px_15px_rgba(0,0,0,0.4)]"
+        onError={(e) => {
+          (e.target as HTMLImageElement).src = LOGO_DATA_URL;
+        }}
       />
     </div>
   );
