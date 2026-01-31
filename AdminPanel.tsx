@@ -14,6 +14,28 @@ import GameManager from './GameManager';
 import { LOGO_DATA_URL } from './constants';
 import { supabase } from './supabase';
 
+// Reutilizando lógica de Fallback para o Admin
+const BrandLogoSmall = ({ className = "w-12 h-12" }: { className?: string }) => {
+  const [error, setError] = useState(false);
+
+  if (error) {
+    return (
+      <div className={`${className} bg-gradient-to-br from-[#003b95] to-[#d90429] rounded-xl flex items-center justify-center shadow border border-slate-100`}>
+        <Trophy className="text-white w-3/5 h-3/5" />
+      </div>
+    );
+  }
+
+  return (
+    <img 
+      src={LOGO_DATA_URL} 
+      alt="Esporte Coxim" 
+      className={`${className} object-contain`}
+      onError={() => setError(true)}
+    />
+  );
+};
+
 interface AdminPanelProps {
   competitions: Competition[];
   teams: Team[];
@@ -33,7 +55,6 @@ export default function AdminPanel({ competitions, teams, games, phases, onRefre
     if (!newTeamData.name) return;
     setSyncing(true);
     try {
-      // Gerando ID manual para evitar erro de constraint NOT NULL
       const manualId = `team_${Date.now()}`;
       const { error } = await supabase.from('teams').insert({ 
         id: manualId,
@@ -73,7 +94,7 @@ export default function AdminPanel({ competitions, teams, games, phases, onRefre
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">
            <div className="bg-white p-2 rounded-2xl shadow-lg border border-slate-100 hidden md:block">
-              <img src={LOGO_DATA_URL} alt="Esporte Coxim" className="w-12 h-12 object-contain" />
+              <BrandLogoSmall />
            </div>
            <h1 className="text-3xl font-black text-slate-900 uppercase italic font-sport leading-none tracking-tight">Painel Administrativo</h1>
         </div>

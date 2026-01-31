@@ -22,6 +22,34 @@ import { DEFAULT_ADMIN, LOGO_DATA_URL } from './constants';
 import AdminPanel from './AdminPanel';
 import { supabase } from './supabase';
 
+// Componente de Logo com Fallback e proporções corrigidas
+const BrandLogo = ({ className = "w-16 h-16 md:w-24 md:h-24" }: { className?: string }) => {
+  const [error, setError] = useState(false);
+
+  // Fallback visual caso até o SVG falhe (raro)
+  if (error) {
+    return (
+      <div className={`${className} bg-gradient-to-br from-[#003b95] to-[#d90429] rounded-2xl flex items-center justify-center shadow-lg border-2 border-white/20`}>
+        <div className="flex flex-col items-center">
+          <Trophy className="text-white w-1/2 h-1/2" />
+          <span className="text-[10px] font-black text-white leading-none mt-1">EC</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${className} flex items-center justify-center p-1`}>
+      <img 
+        src={LOGO_DATA_URL} 
+        alt="Esporte Coxim" 
+        className="w-full h-full object-contain transition-transform hover:scale-110 duration-500 drop-shadow-[0_10px_10px_rgba(0,0,0,0.3)]"
+        onError={() => setError(true)}
+      />
+    </div>
+  );
+};
+
 export default function App() {
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -396,7 +424,7 @@ export default function App() {
           <button onClick={() => setView('user')} className="flex items-center gap-2 md:gap-4 group transition-transform hover:scale-105 active:scale-95">
             <div className="relative">
               <div className="absolute inset-0 bg-white/20 blur-xl rounded-full scale-125 group-hover:bg-white/40 transition-all animate-pulse"></div>
-              <img src={LOGO_DATA_URL} alt="Esporte Coxim" className="relative w-14 h-14 md:w-20 md:h-20 drop-shadow-2xl object-contain" />
+              <BrandLogo />
             </div>
             <div className="flex flex-col leading-none font-sport uppercase italic">
               <span className="text-xl md:text-3xl font-black tracking-tighter">Esporte</span>
@@ -440,7 +468,9 @@ export default function App() {
             <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl text-center border-b-[12px] border-[#003b95]">
               <div className="mb-8 relative group">
                 <div className="absolute inset-0 bg-blue-100 blur-3xl rounded-full scale-110 opacity-50 group-hover:opacity-100 transition-all"></div>
-                <img src={LOGO_DATA_URL} alt="Esporte Coxim" className="relative w-48 h-48 mx-auto object-contain drop-shadow-2xl transition-transform hover:scale-105" />
+                <div className="flex justify-center">
+                  <BrandLogo className="w-32 h-32 md:w-48 md:h-48" />
+                </div>
               </div>
               <h2 className="text-3xl font-black text-slate-800 uppercase italic mb-8 font-sport tracking-tight">Login Administrativo</h2>
               <form onSubmit={handleLogin} className="space-y-6">
